@@ -56,3 +56,15 @@ func Load(fileName string, minSize int) (Image, error) {
 	}
 	return i, nil
 }
+
+// DecodeString returns the 0 terminated string starting at position pos in the image.
+func (i Image) DecodeString(pos int) string {
+	end := pos
+	for ; end < len(i) && i[end] != 0; end++ {
+	}
+	str := make([]rune, end-pos)
+	for idx, c := range i[pos:end] {
+		str[idx] = rune(c)
+	}
+	return string(str)
+}

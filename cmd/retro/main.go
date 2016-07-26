@@ -20,21 +20,26 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
 )
 
 func main() {
-	fileName := "/home/denis/devel/retro-language/retroImage"
+	fileName := "retroImage"
 	img, err := vm.Load(fileName, 1000000)
 	if err == nil {
+		n := time.Now()
 		proc := vm.New(img, fileName)
-		err = proc.Run(1000000)
+		_, err = proc.Run(1000000)
+		el := time.Now().Sub(n).Seconds()
+		c := proc.InstructionCount()
+		fmt.Fprintf(os.Stderr, "Executed %d instructions in %.3fs. Perf: %.2f MIPS\n", c, el, float64(c)/1e6/el)
 	}
 	if err != nil {
 		switch errors.Cause(err) {
-		case io.EOF:
+		case io.EOF: // stdin or stdout closed
 		default:
 			fmt.Fprintf(os.Stderr, "%+v\n", err)
 			os.Exit(1)

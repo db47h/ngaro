@@ -18,7 +18,6 @@ package vm
 
 import (
 	"bufio"
-	"io"
 	"os"
 )
 
@@ -71,9 +70,21 @@ const (
 	addressSize = 1024
 )
 
-type runeWriter interface {
+// RuneReader is the interface that wraps the ReadRune method.
+//
+// ReadRune reads a single UTF-8 encoded Unicode character
+// and returns the rune and its size in bytes. If no character is
+// available, err will be set.
+type RuneReader interface {
+	ReadRune() (r rune, size int, err error)
+}
+
+// RuneWriter is the interface that wraps the WriteRune method.
+//
+// WriteRune writes a single Unicode code point, returning
+// the number of bytes written and any error.
+type RuneWriter interface {
 	WriteRune(r rune) (size int, err error)
-	Flush() error
 }
 
 // Option interface
@@ -91,13 +102,23 @@ func (f optionFunc) set(p *Instance) {
 var Options = struct {
 	DataSize    func(size int) Option
 	AddressSize func(size int) Option
+	Input       func(r RuneReader) Option
+	Output      func(r RuneWriter) Option
 }{
 	DataSize: func(size int) Option {
-		var f optionFunc = func(p *Instance) { p.data = make([]Cell, size) }
+		var f optionFunc = func(i *Instance) { i.data = make([]Cell, size) }
 		return f
 	},
 	AddressSize: func(size int) Option {
-		var f optionFunc = func(p *Instance) { p.address = make([]Cell, size) }
+		var f optionFunc = func(i *Instance) { i.address = make([]Cell, size) }
+		return f
+	},
+	Input: func(r RuneReader) Option {
+		var f optionFunc = func(i *Instance) { i.PushInput(r) }
+		return f
+	},
+	Output: func(r RuneWriter) Option {
+		var f optionFunc = func(i *Instance) { i.output = r }
 		return f
 	},
 }
@@ -112,50 +133,60 @@ type Instance struct {
 	address   []Cell
 	ports     []Cell
 	imageFile string
-	input     io.RuneReader
-	output    runeWriter
+	input     RuneReader
+	output    RuneWriter
+	insCount  int64
 }
 
 // New creates a new ProcessingUnit
 func New(image Image, imageFile string, opts ...Option) *Instance {
-	p := &Instance{
+	i := &Instance{
 		ip:        0,
 		sp:        -1,
 		rsp:       -1,
 		Image:     image,
 		ports:     make([]Cell, portCount),
 		imageFile: imageFile,
-		input:     bufio.NewReader(os.Stdin),
-		output:    bufio.NewWriter(os.Stdout),
 	}
 	for _, opt := range opts {
-		opt.set(p)
+		opt.set(i)
 	}
-	if p.data == nil {
-		p.data = make([]Cell, 1024)
+	if i.data == nil {
+		i.data = make([]Cell, 1024)
 	}
-	if p.address == nil {
-		p.address = make([]Cell, 1024)
+	if i.address == nil {
+		i.address = make([]Cell, 1024)
 	}
-	return p
+	if i.input == nil {
+		i.input = bufio.NewReader(os.Stdin)
+	}
+	if i.output == nil {
+		i.output = bufio.NewWriter(os.Stdout)
+	}
+	return i
 }
 
-// // Data returns a copy of the data stack for inspection
-// func (p *Instance) Data() []Cell {
-// 	if p.sp < 0 {
-// 		return nil
-// 	}
-// 	r := make([]Cell, p.sp+1)
-// 	copy(r, p.data)
-// 	return r
-// }
-//
-// // Address returns a copy of the address stack for inspection
-// func (p *Instance) Address() []Cell {
-// 	if p.rsp < 0 {
-// 		return nil
-// 	}
-// 	r := make([]Cell, p.rsp+1)
-// 	copy(r, p.address)
-// 	return r
-// }
+// Data returns a copy of the data stack for inspection
+func (i *Instance) Data() []Cell {
+	if i.sp < 0 {
+		return nil
+	}
+	r := make([]Cell, i.sp+1)
+	copy(r, i.data)
+	return r
+}
+
+// Address returns a copy of the address stack for inspection
+func (i *Instance) Address() []Cell {
+	if i.rsp < 0 {
+		return nil
+	}
+	r := make([]Cell, i.rsp+1)
+	copy(r, i.address)
+	return r
+}
+
+// InstructionCount returns the number of instructions executed so far
+func (i *Instance) InstructionCount() int64 {
+	return i.insCount
+}
