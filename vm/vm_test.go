@@ -29,7 +29,7 @@ func setup(code, stack, rstack C) *vm.Instance {
 }
 
 func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
-	lip, err := i.Run(len(i.Image))
+	err := i.Run(len(i.Image))
 	if err != nil {
 		t.Errorf("%+v", err)
 		return
@@ -37,8 +37,8 @@ func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
 	if ip <= 0 {
 		ip = len(i.Image)
 	}
-	if ip != lip {
-		t.Errorf("%+v", errors.Errorf("Bad IP %d != %d", lip, ip))
+	if ip != i.PC {
+		t.Errorf("%+v", errors.Errorf("Bad IP %d != %d", i.PC, ip))
 	}
 	stk := i.Data()
 	diff := len(stk) != len(stack)
@@ -99,11 +99,15 @@ func TestPop(t *testing.T) {
 }
 
 func TestLoop(t *testing.T) {
-	p := setup(C{7, 100}, C{2}, nil)
-	check(t, p, 100, C{1}, nil)
+	p := setup(C{
+		7, 4, // 0: LOOP 4
+		1, 0, // 2: LIT 0
+		1, 1, // 4: LIT 1
+	}, C{43}, nil)
+	check(t, p, 0, C{42, 1}, nil)
 
-	p = setup(C{7, 100}, C{1}, nil)
-	check(t, p, 2, nil, nil)
+	p = setup(C{7, 4, 1, 0, 1, 1}, C{1}, nil)
+	check(t, p, 0, C{0, 1}, nil)
 }
 
 // TODO: make more...
@@ -127,7 +131,7 @@ func ExampleInstance_Run() {
 		vm.OptOutput(output))
 
 	// run it
-	_, err = i.Run(len(i.Image))
+	err = i.Run(len(i.Image))
 	if err != nil {
 		panic(err)
 	}
@@ -143,8 +147,6 @@ func ExampleInstance_Run() {
 }
 
 func BenchmarkRun(b *testing.B) {
-	b.StopTimer()
-
 	imageFile := "testdata/retroImage"
 	input, err := os.Open("testdata/core.rx")
 	if err != nil {
@@ -153,6 +155,7 @@ func BenchmarkRun(b *testing.B) {
 	}
 	defer input.Close()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		img, err := vm.Load(imageFile, 50000)
 		if err != nil {
@@ -161,14 +164,16 @@ func BenchmarkRun(b *testing.B) {
 		input.Seek(0, 0)
 		proc := vm.New(img, imageFile,
 			vm.OptInput(input))
+
 		n := time.Now()
-
 		b.StartTimer()
-		_, err = proc.Run(len(proc.Image))
-		b.StopTimer()
 
+		err = proc.Run(len(proc.Image))
+
+		b.StopTimer()
 		el := time.Now().Sub(n).Seconds()
 		c := proc.InstructionCount()
+
 		fmt.Printf("Executed %d instructions in %.3fs. Perf: %.2f MIPS\n", c, el, float64(c)/1e6/el)
 		if err != nil {
 			switch errors.Cause(err) {

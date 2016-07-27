@@ -44,152 +44,150 @@ func (i *Instance) Rpop() Cell {
 	return i.address[rsp]
 }
 
-// Run starts execution of the VM until the intruction pointer reaches `toIP`.
-// Returns current instruction pointer, i.e. the first instruction that will be
-// executed on the next call to run. If an error occurs, ip will point to the
-// instruction that triggered the error.
+// Run starts execution of the VM until the program pointer reaches `toPC`.
+// If an error occurs, the PC will will point to the instruction that triggered
+// the error.
 //
-// If the VM was exited from a user program, ip will be equal to len(i.Image) and
-// err will be nil.
-func (i *Instance) Run(toIP int) (ip int, err error) {
+// If the VM was exited cleanly from a user program with the `bye` word, the PC
+// will be equal to len(i.Image) and err will be nil.
+func (i *Instance) Run(toPC int) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = errors.Errorf("%v", e)
-			ip = i.ip
 		}
 	}()
 	i.insCount = 0
-	for i.ip < toIP {
+	for i.PC < len(i.Image) {
 		// fmt.Printf("% 8d\t%s", p.ip, opcode)
 		// switch opcode {
 		// case OpLit, OpLoop, OpJump, OpGtJump, OpLtJump, OpEqJump, OpNeJump:
 		// 	fmt.Printf(" %d", int(p.Image[p.ip+1]))
 		// }
 		// fmt.Printf("\t%v\n", p.data[0:p.sp+1])
-		op := opcode(i.Image[i.ip])
+		op := opcode(i.Image[i.PC])
 		switch op {
 		case OpNop:
-			i.ip++
+			i.PC++
 		case OpLit:
-			i.Push(i.Image[i.ip+1])
-			i.ip += 2
+			i.Push(i.Image[i.PC+1])
+			i.PC += 2
 		case OpDup:
 			i.Push(i.data[i.sp])
-			i.ip++
+			i.PC++
 		case OpDrop:
 			i.sp--
-			i.ip++
+			i.PC++
 		case OpSwap:
 			i.data[i.sp], i.data[i.sp-1] = i.data[i.sp-1], i.data[i.sp]
-			i.ip++
+			i.PC++
 		case OpPush:
 			i.Rpush(i.Pop())
-			i.ip++
+			i.PC++
 		case OpPop:
 			i.Push(i.Rpop())
-			i.ip++
+			i.PC++
 		case OpLoop:
 			v := i.data[i.sp] - 1
 			if v > 0 {
 				i.data[i.sp] = v
-				i.ip = int(i.Image[i.ip+1])
+				i.PC = int(i.Image[i.PC+1])
 			} else {
 				i.sp--
-				i.ip += 2
+				i.PC += 2
 			}
 		case OpJump:
-			i.ip = int(i.Image[i.ip+1])
+			i.PC = int(i.Image[i.PC+1])
 		case OpReturn:
-			i.ip = int(i.Rpop() + 1)
+			i.PC = int(i.Rpop() + 1)
 		case OpGtJump:
 			if i.data[i.sp-1] > i.data[i.sp] {
-				i.ip = int(i.Image[i.ip+1])
+				i.PC = int(i.Image[i.PC+1])
 			} else {
-				i.ip += 2
+				i.PC += 2
 			}
 			i.sp -= 2
 		case OpLtJump:
 			if i.data[i.sp-1] < i.data[i.sp] {
-				i.ip = int(i.Image[i.ip+1])
+				i.PC = int(i.Image[i.PC+1])
 			} else {
-				i.ip += 2
+				i.PC += 2
 			}
 			i.sp -= 2
 		case OpNeJump:
 			if i.data[i.sp-1] != i.data[i.sp] {
-				i.ip = int(i.Image[i.ip+1])
+				i.PC = int(i.Image[i.PC+1])
 			} else {
-				i.ip += 2
+				i.PC += 2
 			}
 			i.sp -= 2
 		case OpEqJump:
 			if i.data[i.sp-1] == i.data[i.sp] {
-				i.ip = int(i.Image[i.ip+1])
+				i.PC = int(i.Image[i.PC+1])
 			} else {
-				i.ip += 2
+				i.PC += 2
 			}
 			i.sp -= 2
 		case OpFetch:
 			i.data[i.sp] = i.Image[i.data[i.sp]]
-			i.ip++
+			i.PC++
 		case OpStore:
 			i.Image[i.data[i.sp]] = i.data[i.sp-1]
 			i.sp -= 2
-			i.ip++
+			i.PC++
 		case OpAdd:
 			rhs := i.Pop()
 			i.data[i.sp] += rhs
-			i.ip++
+			i.PC++
 		case OpSub:
 			rhs := i.Pop()
 			i.data[i.sp] -= rhs
-			i.ip++
+			i.PC++
 		case OpMul:
 			rhs := i.Pop()
 			i.data[i.sp] *= rhs
-			i.ip++
+			i.PC++
 		case OpDimod:
 			lhs, rhs := i.data[i.sp-1], i.data[i.sp]
 			i.data[i.sp-1] = lhs % rhs
 			i.data[i.sp] = lhs / rhs
-			i.ip++
+			i.PC++
 		case OpAnd:
 			rhs := i.Pop()
 			i.data[i.sp] &= rhs
-			i.ip++
+			i.PC++
 		case OpOr:
 			rhs := i.Pop()
 			i.data[i.sp] |= rhs
-			i.ip++
+			i.PC++
 		case OpXor:
 			rhs := i.Pop()
 			i.data[i.sp] ^= rhs
-			i.ip++
+			i.PC++
 		case OpShl:
 			rhs := i.Pop()
 			i.data[i.sp] <<= uint8(rhs)
-			i.ip++
+			i.PC++
 		case OpShr:
 			rhs := i.Pop()
 			i.data[i.sp] >>= uint8(rhs)
-			i.ip++
+			i.PC++
 		case OpZeroExit:
 			if i.data[i.sp] == 0 {
-				i.ip = int(i.Rpop() + 1)
+				i.PC = int(i.Rpop() + 1)
 				i.sp--
 			} else {
-				i.ip++
+				i.PC++
 			}
 		case OpInc:
 			i.data[i.sp]++
-			i.ip++
+			i.PC++
 		case OpDec:
 			i.data[i.sp]--
-			i.ip++
+			i.PC++
 		case OpIn:
 			port := i.data[i.sp]
 			i.data[i.sp], i.ports[port] = i.ports[port], 0
-			i.ip++
+			i.PC++
 		case OpOut:
 			port := i.data[i.sp]
 			i.ports[port] = i.data[i.sp-1]
@@ -199,23 +197,20 @@ func (i *Instance) Run(toIP int) (ip int, err error) {
 					o.Flush()
 				}
 			}
-			i.ip++
+			i.PC++
 		case OpWait:
 			err = i.ioWait()
 			switch err.(type) {
 			case nil:
-				i.ip++
-			case breakError:
-				i.ip++
-				return i.ip, nil
+				i.PC++
 			default:
-				return i.ip, err
+				return err
 			}
 		default:
 			i.rsp++
-			i.address[i.rsp], i.ip = Cell(i.ip), int(op)
+			i.address[i.rsp], i.PC = Cell(i.PC), int(op)
 		}
 		i.insCount++
 	}
-	return i.ip, nil
+	return nil
 }

@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -35,8 +36,9 @@ func main() {
 	// default options
 	var optlist = []vm.Option{
 		vm.OptShrinkImage(*shrink),
-		vm.OptOutput(os.Stdout),
-		vm.OptInput(os.Stdin),
+		// buffered io is faster
+		vm.OptOutput(bufio.NewWriter(os.Stdout)),
+		vm.OptInput(bufio.NewReader(os.Stdin)),
 	}
 
 	// append withFile to the input stack
@@ -52,7 +54,7 @@ func main() {
 	img, err := vm.Load(*fileName, 1000000)
 	if err == nil {
 		proc := vm.New(img, *fileName, optlist...)
-		_, err = proc.Run(1000000)
+		err = proc.Run(len(proc.Image))
 	}
 	if err != nil {
 		switch errors.Cause(err) {

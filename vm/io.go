@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -27,14 +26,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+// flusher wraps the Flush method.
 type flusher interface {
 	Flush() error
 }
 
+// readWriter wraps the WriteRune method. Works the same ad bufio.Writer.WriteRune.
 type runeWriter interface {
 	WriteRune(r rune) (size int, err error)
 }
 
+// runeWriterWrapper wraps a plain io.Reader into a runeWriter and flusher.
+// Flush() only works as a proxy for the wrapped Reader's own Flush method if
+// implemented.
 type runeWriterWrapper struct {
 	io.Writer
 }
@@ -57,6 +61,7 @@ func (w *runeWriterWrapper) WriteRune(r rune) (size int, err error) {
 	return w.Writer.Write(b[0:l])
 }
 
+// Flush is only a proxy for the wrapped reader's own Flush method if implemented.
 func (w *runeWriterWrapper) Flush() error {
 	if f, ok := w.Writer.(flusher); ok {
 		return f.Flush()
@@ -144,9 +149,6 @@ func (mr *multiRuneReader) ReadRune() (r rune, size int, err error) {
 
 func (mr *multiRuneReader) pushReader(r io.Reader) {
 	mr.readers = append([]io.RuneReader{newRuneReader(r)}, mr.readers...)
-	for _, rr := range mr.readers {
-		fmt.Printf("%#v\n", rr)
-	}
 }
 
 // PushInput sets r as the current input RuneReader for the VM. When this reader
@@ -161,12 +163,6 @@ func (i *Instance) PushInput(r io.Reader) {
 	default:
 		i.input = &multiRuneReader{[]io.RuneReader{newRuneReader(r), i.input}}
 	}
-}
-
-type breakError struct{}
-
-func (breakError) Error() string {
-	return "user breakpoint"
 }
 
 func (i *Instance) out(v Cell, port int) {
@@ -236,7 +232,7 @@ func (i *Instance) ioWait() error {
 			i.ports[5] = Cell(time.Now().Unix())
 		case -9:
 			i.ports[5] = 0
-			i.ip = len(i.Image) - 1 // will be incremented when returning
+			i.PC = len(i.Image) - 1 // will be incremented when returning
 		case -13:
 			i.ports[5] = Cell(unsafe.Sizeof(i.ports[0]) * 8)
 		case -16:

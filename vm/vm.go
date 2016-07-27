@@ -15,11 +15,15 @@
 // limitations under the License.
 
 // Package vm blah.
-// TODO: add
-// complete file i/o
-//	- a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
-//	- a disasm func
-//	- discard the RuneWriter interface. Implement it by hand.
+// TODO:
+//	- switch to raw stdio
+//	- complete file i/o
+//	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
+//	- add a disasm func
+//	- implement communication with host go program via channels (in io)
+//	- go routines that leverage channels (watch out for the panic handler, we should have a global `done` channel)
+//	- BUG: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
+//		-1 5 out 0 0 out wait 5 in putn
 package vm
 
 import "io"
@@ -113,7 +117,7 @@ func OptShrinkImage(shrink bool) Option {
 
 // Instance represents an ngaro VM instance.
 type Instance struct {
-	ip        int
+	PC        int
 	sp        int
 	rsp       int
 	Image     Image
@@ -130,7 +134,7 @@ type Instance struct {
 // New creates a new Ngaro Virtual Machine instance.
 func New(image Image, imageFile string, opts ...Option) *Instance {
 	i := &Instance{
-		ip:        0,
+		PC:        0,
 		sp:        -1,
 		rsp:       -1,
 		Image:     image,
