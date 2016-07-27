@@ -17,25 +17,42 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
 )
 
 func main() {
-	fileName := "retroImage"
-	img, err := vm.Load(fileName, 1000000)
+	var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
+	var withFile = flag.String("with", "", "Add `filename` to the input stack")
+	var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
+	flag.Parse()
+
+	// default options
+	var optlist = []vm.Option{
+		vm.OptShrinkImage(*shrink),
+		vm.OptOutput(os.Stdout),
+		vm.OptInput(os.Stdin),
+	}
+
+	// append withFile to the input stack
+	if len(*withFile) > 0 {
+		f, err := os.Open(*withFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		optlist = append(optlist, vm.OptInput(f))
+	}
+
+	img, err := vm.Load(*fileName, 1000000)
 	if err == nil {
-		n := time.Now()
-		proc := vm.New(img, fileName)
+		proc := vm.New(img, *fileName, optlist...)
 		_, err = proc.Run(1000000)
-		el := time.Now().Sub(n).Seconds()
-		c := proc.InstructionCount()
-		fmt.Fprintf(os.Stderr, "Executed %d instructions in %.3fs. Perf: %.2f MIPS\n", c, el, float64(c)/1e6/el)
 	}
 	if err != nil {
 		switch errors.Cause(err) {

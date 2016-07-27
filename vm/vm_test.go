@@ -3,7 +3,6 @@
 package vm_test
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
@@ -124,9 +122,9 @@ func ExampleInstance_Run() {
 	// Setup the VM instance with os.Stdin as first reader, and we push another
 	// reader with some custom init code that will include and run the retro core tests.
 	i := vm.New(img, imageFile,
-		vm.Options.Input(bufio.NewReader(os.Stdin)),
-		vm.Options.Input(strings.NewReader("\"testdata/core.rx\" :include\n")),
-		vm.Options.Output(output))
+		vm.OptInput(os.Stdin),
+		vm.OptInput(strings.NewReader("\"testdata/core.rx\" :include\n")),
+		vm.OptOutput(output))
 
 	// run it
 	_, err = i.Run(len(i.Image))
@@ -143,13 +141,6 @@ func ExampleInstance_Run() {
 	// 360 tests run: 360 passed, 0 failed.
 	// 186 words checked, 0 words unchecked, 37 i/o words ignored.
 }
-
-// nilOutput is a black hole Writer. While the Flush method is not necessary, it's here
-// for code coverage testing.
-type nilOutput struct{}
-
-func (nilOutput) WriteRune(r rune) (size int, err error) { return utf8.RuneLen(r), nil }
-func (nilOutput) Flush() error                           { return nil }
 
 func BenchmarkRun(b *testing.B) {
 	b.StopTimer()
@@ -169,8 +160,7 @@ func BenchmarkRun(b *testing.B) {
 		}
 		input.Seek(0, 0)
 		proc := vm.New(img, imageFile,
-			vm.Options.Input(bufio.NewReader(input)),
-			vm.Options.Output(nilOutput{}))
+			vm.OptInput(input))
 		n := time.Now()
 
 		b.StartTimer()

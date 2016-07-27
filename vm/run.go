@@ -195,9 +195,7 @@ func (i *Instance) Run(toIP int) (ip int, err error) {
 			i.ports[port] = i.data[i.sp-1]
 			i.sp -= 2
 			if port == 3 {
-				if o, ok := i.output.(interface {
-					Flush() error
-				}); ok {
+				if o, ok := i.output.(flusher); ok {
 					o.Flush()
 				}
 			}

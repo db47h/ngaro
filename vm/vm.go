@@ -20,13 +20,9 @@
 //	- a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
 //	- a disasm func
 //	- discard the RuneWriter interface. Implement it by hand.
-//	- mod=ve options out of the Options struct, and remove that struct.
 package vm
 
-import (
-	"bufio"
-	"os"
-)
+import "io"
 
 // Cell is the raw type stored in a memory location.
 type Cell int32
@@ -74,23 +70,6 @@ const (
 	addressSize = 1024
 )
 
-// RuneReader is the interface that wraps the ReadRune method.
-//
-// ReadRune reads a single UTF-8 encoded Unicode character
-// and returns the rune and its size in bytes. If no character is
-// available, err will be set.
-type RuneReader interface {
-	ReadRune() (r rune, size int, err error)
-}
-
-// RuneWriter is the interface that wraps the WriteRune method.
-//
-// WriteRune writes a single Unicode code point, returning
-// the number of bytes written and any error.
-type RuneWriter interface {
-	WriteRune(r rune) (size int, err error)
-}
-
 // Option interface
 type Option interface {
 	set(p *Instance)
@@ -102,32 +81,37 @@ func (f optionFunc) set(p *Instance) {
 	f(p)
 }
 
-// Options for VM instance creation.
-var Options = struct {
-	DataSize    func(size int) Option     // Sets the data stack size.
-	AddressSize func(size int) Option     // Sets the address stack size.
-	Input       func(r RuneReader) Option // Sets the input RuneReader.
-	Output      func(r RuneWriter) Option // Sets the output writer.
-}{
-	DataSize: func(size int) Option {
-		var f optionFunc = func(i *Instance) { i.data = make([]Cell, size) }
-		return f
-	},
-	AddressSize: func(size int) Option {
-		var f optionFunc = func(i *Instance) { i.address = make([]Cell, size) }
-		return f
-	},
-	Input: func(r RuneReader) Option {
-		var f optionFunc = func(i *Instance) { i.PushInput(r) }
-		return f
-	},
-	Output: func(r RuneWriter) Option {
-		var f optionFunc = func(i *Instance) { i.output = r }
-		return f
-	},
+// OptDataSize sets the data stack size.
+func OptDataSize(size int) Option {
+	var f optionFunc = func(i *Instance) { i.data = make([]Cell, size) }
+	return f
 }
 
-// Instance represents an ngaro VM instance
+// OptAddressSize sets the address stack size.
+func OptAddressSize(size int) Option {
+	var f optionFunc = func(i *Instance) { i.address = make([]Cell, size) }
+	return f
+}
+
+// OptInput adds the given RuneReader to the list of inputs.
+func OptInput(r io.Reader) Option {
+	var f optionFunc = func(i *Instance) { i.PushInput(r) }
+	return f
+}
+
+// OptOutput sets the output Writer.
+func OptOutput(w io.Writer) Option {
+	var f optionFunc = func(i *Instance) { i.output = newWriter(w) }
+	return f
+}
+
+// OptShrinkImage enables or disables image shrinking when saving it.
+func OptShrinkImage(shrink bool) Option {
+	var f optionFunc = func(i *Instance) { i.shrink = shrink }
+	return f
+}
+
+// Instance represents an ngaro VM instance.
 type Instance struct {
 	ip        int
 	sp        int
@@ -137,12 +121,13 @@ type Instance struct {
 	address   []Cell
 	ports     []Cell
 	imageFile string
-	input     RuneReader
-	output    RuneWriter
+	shrink    bool
+	input     io.RuneReader
+	output    runeWriter
 	insCount  int64
 }
 
-// New creates a new ProcessingUnit
+// New creates a new Ngaro Virtual Machine instance.
 func New(image Image, imageFile string, opts ...Option) *Instance {
 	i := &Instance{
 		ip:        0,
@@ -160,12 +145,6 @@ func New(image Image, imageFile string, opts ...Option) *Instance {
 	}
 	if i.address == nil {
 		i.address = make([]Cell, 1024)
-	}
-	if i.input == nil {
-		i.input = bufio.NewReader(os.Stdin)
-	}
-	if i.output == nil {
-		i.output = bufio.NewWriter(os.Stdout)
 	}
 	return i
 }

@@ -57,6 +57,21 @@ func Load(fileName string, minSize int) (Image, error) {
 	return i, nil
 }
 
+// Save saves the image. If the shrink parameter is true, only the portion of
+// the image from offset 0 to HERE will be saved.
+func (i Image) Save(fileName string, shrink bool) error {
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return errors.Wrap(err, "Save image")
+	}
+	defer f.Close()
+
+	if shrink {
+		i = i[0:i[3]]
+	}
+	return errors.Wrap(binary.Write(f, binary.LittleEndian, i), "Save image")
+}
+
 // DecodeString returns the 0 terminated string starting at position pos in the image.
 func (i Image) DecodeString(pos int) string {
 	end := pos
