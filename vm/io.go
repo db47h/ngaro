@@ -18,7 +18,6 @@ package vm
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -56,13 +55,13 @@ func (mr *multiRuneReader) pushReader(r RuneReader) {
 func (i *Instance) PushInput(r RuneReader) {
 	switch in := i.input.(type) {
 	case nil:
-		fmt.Fprintf(os.Stderr, "Single reader\n")
+		// no reader yet, just use this one
 		i.input = r
 	case *multiRuneReader:
-		fmt.Fprintf(os.Stderr, "Pushing reader to existing mr\n")
+		// we have an existing multiRuneReader
 		in.pushReader(r)
 	default:
-		fmt.Fprintf(os.Stderr, "Pushing reader to new mr\n")
+		// standard reader, join with new one in a new multiRuneReader
 		mr := &multiRuneReader{
 			readers: []RuneReader{in},
 		}
@@ -116,6 +115,7 @@ func (i *Instance) ioWait() error {
 		case 1: // save image
 			panic("TODO: Save image")
 		case 2: // include file
+			i.ports[4] = 0
 			f, err := os.Open(i.Image.DecodeString(int(i.Pop())))
 			if err != nil {
 				return errors.Wrap(err, "Include failed")
@@ -125,8 +125,7 @@ func (i *Instance) ioWait() error {
 			if err != nil {
 				return errors.Wrap(err, "Include failed")
 			}
-			i.PushInput(bytes.NewBuffer(b))
-			i.ports[4] = 0
+			i.PushInput(bytes.NewReader(b))
 		default:
 			i.ports[4] = 0
 		}

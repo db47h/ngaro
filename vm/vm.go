@@ -14,6 +14,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package vm blah.
+// TODO: add
+// complete file i/o
+//	- a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
+//	- a disasm func
+//	- discard the RuneWriter interface. Implement it by hand.
+//	- mod=ve options out of the Options struct, and remove that struct.
 package vm
 
 import (
@@ -24,12 +31,9 @@ import (
 // Cell is the raw type stored in a memory location.
 type Cell int32
 
-// UCell is the unsigned counterpart of Cell
-type UCell uint32
-
 type opcode Cell
 
-// Opcodes
+// ngaro Virtual Machine Opcodes.
 const (
 	OpNop opcode = iota
 	OpLit
@@ -98,12 +102,12 @@ func (f optionFunc) set(p *Instance) {
 	f(p)
 }
 
-// Options for VM
+// Options for VM instance creation.
 var Options = struct {
-	DataSize    func(size int) Option
-	AddressSize func(size int) Option
-	Input       func(r RuneReader) Option
-	Output      func(r RuneWriter) Option
+	DataSize    func(size int) Option     // Sets the data stack size.
+	AddressSize func(size int) Option     // Sets the address stack size.
+	Input       func(r RuneReader) Option // Sets the input RuneReader.
+	Output      func(r RuneWriter) Option // Sets the output writer.
 }{
 	DataSize: func(size int) Option {
 		var f optionFunc = func(i *Instance) { i.data = make([]Cell, size) }
@@ -166,27 +170,21 @@ func New(image Image, imageFile string, opts ...Option) *Instance {
 	return i
 }
 
-// Data returns a copy of the data stack for inspection
+// Data returns the data stack. Note that value changes will be reflected in the
+// instance's stack, but reslicing will not affect it. To add/remove values on
+// the data stack, use the Push and Pop functions.
 func (i *Instance) Data() []Cell {
-	if i.sp < 0 {
-		return nil
-	}
-	r := make([]Cell, i.sp+1)
-	copy(r, i.data)
-	return r
+	return i.data[:i.sp+1]
 }
 
-// Address returns a copy of the address stack for inspection
+// Address returns the address stack. Note that value changes will be reflected
+// in the instance's stack, but reslicing will not affect it. To add/remove
+// values on the address stack, use the Rpush and Rpop functions.
 func (i *Instance) Address() []Cell {
-	if i.rsp < 0 {
-		return nil
-	}
-	r := make([]Cell, i.rsp+1)
-	copy(r, i.address)
-	return r
+	return i.address[:i.rsp+1]
 }
 
-// InstructionCount returns the number of instructions executed so far
+// InstructionCount returns the number of instructions executed so far.
 func (i *Instance) InstructionCount() int64 {
 	return i.insCount
 }

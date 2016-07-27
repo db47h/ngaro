@@ -167,11 +167,11 @@ func (i *Instance) Run(toIP int) (ip int, err error) {
 			i.ip++
 		case OpShl:
 			rhs := i.Pop()
-			i.data[i.sp] <<= UCell(rhs)
+			i.data[i.sp] <<= uint8(rhs)
 			i.ip++
 		case OpShr:
 			rhs := i.Pop()
-			i.data[i.sp] >>= UCell(rhs)
+			i.data[i.sp] >>= uint8(rhs)
 			i.ip++
 		case OpZeroExit:
 			if i.data[i.sp] == 0 {
