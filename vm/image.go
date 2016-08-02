@@ -28,7 +28,7 @@ import (
 type Image []Cell
 
 // Load loads an image from file fileName. The image size will be the largest of
-// the file size and minSize parameter.
+// (file cells + 1024) and minSize parameter.
 func Load(fileName string, minSize int) (Image, error) {
 	f, err := os.Open(fileName)
 	if err != nil {
@@ -46,7 +46,9 @@ func Load(fileName string, minSize int) (Image, error) {
 	var t Cell
 	sz /= int64(unsafe.Sizeof(t))
 	fileCells := sz
-	if int64(minSize) > sz {
+	// make sure there are at least 1024 free cells at the end of the image
+	sz += 1024
+	if int64(minSize) > fileCells {
 		sz = int64(minSize)
 	}
 	i := make(Image, sz)

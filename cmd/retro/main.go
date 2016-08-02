@@ -27,10 +27,22 @@ import (
 	"github.com/pkg/errors"
 )
 
+func handleErr(err error) {
+	if err != nil {
+		switch errors.Cause(err) {
+		case io.EOF: // stdin or stdout closed
+		default:
+			fmt.Fprintf(os.Stderr, "%+v\n", err)
+			os.Exit(1)
+		}
+	}
+}
+
 func main() {
 	var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
 	var withFile = flag.String("with", "", "Add `filename` to the input stack")
 	var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
+	var size = flag.Int("size", 50000, "image size in cells")
 	flag.Parse()
 
 	// default options
@@ -51,17 +63,13 @@ func main() {
 		optlist = append(optlist, vm.OptInput(f))
 	}
 
-	img, err := vm.Load(*fileName, 1000000)
-	if err == nil {
-		proc := vm.New(img, *fileName, optlist...)
-		err = proc.Run(len(proc.Image))
-	}
+	img, err := vm.Load(*fileName, *size)
 	if err != nil {
-		switch errors.Cause(err) {
-		case io.EOF: // stdin or stdout closed
-		default:
-			fmt.Fprintf(os.Stderr, "%+v\n", err)
-			os.Exit(1)
-		}
+		handleErr(err)
+	}
+	proc := vm.New(img, *fileName, optlist...)
+	err = proc.Run(len(proc.Image))
+	if err != nil {
+		handleErr(err)
 	}
 }
