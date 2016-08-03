@@ -18,6 +18,8 @@ import (
 
 type C []vm.Cell
 
+var imageFile = "testdata/retroImage"
+
 func setup(code, stack, rstack C) *vm.Instance {
 	i, err := vm.New(vm.Image(code), "")
 	if err != nil {
@@ -191,8 +193,71 @@ func ExampleOutHandler() {
 	// ok
 }
 
+var fib = []vm.Opcode{
+	vm.OpPush,
+	vm.OpLit, 0,
+	vm.OpLit, 1,
+	vm.OpPop,
+	vm.OpJump, 15,
+	vm.OpPush, // save count
+	vm.OpDup,
+	vm.OpPush, // save n-1
+	vm.OpAdd,  // n-2 + n-1
+	vm.OpPop,
+	vm.OpSwap, // stack: n-2 n-1
+	vm.OpPop,
+	vm.OpLoop, 8,
+	vm.OpSwap,
+	vm.OpDrop,
+}
+
+func Test_Fib(t *testing.T) {
+	f := make(C, len(fib))
+	for i := range fib {
+		f[i] = vm.Cell(fib[i])
+	}
+	p := setup(f, C{30}, nil)
+	check(t, p, 0, C{832040}, nil)
+}
+
+func Test_Fib2(t *testing.T) {
+	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
+	img, _ := vm.Load(imageFile, 50000)
+	i, _ := vm.New(img, imageFile,
+		vm.Input(strings.NewReader(fib)))
+	i.Run(len(i.Image))
+	for c := len(i.Address()); c > 0; c-- {
+		i.Rpop()
+	}
+	check(t, i, 0, C{832040}, nil)
+}
+
+func Benchmark_Fib(b *testing.B) {
+	f := make(C, len(fib))
+	for i := range fib {
+		f[i] = vm.Cell(fib[i])
+	}
+	for c := 0; c < b.N; c++ {
+		b.StopTimer()
+		i := setup(f, C{46}, nil)
+		b.StartTimer()
+		i.Run(len(i.Image))
+	}
+}
+
+func Benchmark_Fib2(b *testing.B) {
+	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
+	for c := 0; c < b.N; c++ {
+		b.StopTimer()
+		img, _ := vm.Load(imageFile, 50000)
+		i, _ := vm.New(img, imageFile,
+			vm.Input(strings.NewReader(fib)))
+		b.StartTimer()
+		i.Run(len(i.Image))
+	}
+}
+
 func BenchmarkRun(b *testing.B) {
-	imageFile := "testdata/retroImage"
 	input, err := os.Open("testdata/core.rx")
 	if err != nil {
 		b.Errorf("%+v\n", err)

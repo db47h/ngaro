@@ -8,9 +8,9 @@ const opcodeName = "OpNopOpLitOpDupOpDropOpSwapOpPushOpPopOpLoopOpJumpOpReturnOp
 
 var opcodeIndex = [...]uint8{0, 5, 10, 15, 21, 27, 33, 38, 44, 50, 58, 66, 74, 82, 90, 97, 104, 109, 114, 119, 126, 131, 135, 140, 145, 150, 160, 165, 170, 174, 179, 185}
 
-func (i opcode) String() string {
-	if i < 0 || i >= opcode(len(opcodeIndex)-1) {
-		return fmt.Sprintf("Call %d", i)
+func (i Opcode) String() string {
+	if i < 0 || i >= Opcode(len(opcodeIndex)-1) {
+		return fmt.Sprintf("OpCall %d", i)
 	}
 	return opcodeName[opcodeIndex[i]:opcodeIndex[i+1]]
 }

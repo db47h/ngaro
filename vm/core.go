@@ -18,11 +18,12 @@ package vm
 
 import "github.com/pkg/errors"
 
-type opcode Cell
+// Opcode represents an Ngaro VM opcode.
+type Opcode Cell
 
 // ngaro Virtual Machine Opcodes.
 const (
-	OpNop opcode = iota
+	OpNop Opcode = iota
 	OpLit
 	OpDup
 	OpDrop
@@ -99,13 +100,13 @@ func (i *Instance) Run(toPC int) (err error) {
 	}()
 	i.insCount = 0
 	for i.PC < len(i.Image) {
-		// fmt.Printf("% 8d\t%s", p.ip, opcode)
-		// switch opcode {
+		op := Opcode(i.Image[i.PC])
+		// fmt.Printf("% 8d\t%s", i.PC, op.Disasm())
+		// switch op {
 		// case OpLit, OpLoop, OpJump, OpGtJump, OpLtJump, OpEqJump, OpNeJump:
-		// 	fmt.Printf(" %d", int(p.Image[p.ip+1]))
+		// 	fmt.Printf(" %d", int(i.Image[i.PC+1]))
 		// }
-		// fmt.Printf("\t%v\n", p.data[0:p.sp+1])
-		op := opcode(i.Image[i.PC])
+		// fmt.Printf("\t%v\t%v\n", i.Data(), i.Address())
 		switch op {
 		case OpNop:
 			i.PC++
