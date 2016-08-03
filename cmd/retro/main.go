@@ -27,49 +27,65 @@ import (
 	"github.com/pkg/errors"
 )
 
-func handleErr(err error) {
-	if err != nil {
-		switch errors.Cause(err) {
-		case io.EOF: // stdin or stdout closed
-		default:
+func main() {
+	// check exit condition
+	var err error
+	defer func() {
+		if err != nil {
+			err = errors.Cause(err)
 			fmt.Fprintf(os.Stderr, "%+v\n", err)
 			os.Exit(1)
 		}
-	}
-}
+	}()
 
-func main() {
 	var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
 	var withFile = flag.String("with", "", "Add `filename` to the input stack")
 	var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
 	var size = flag.Int("size", 50000, "image size in cells")
 	flag.Parse()
 
+	var interactive bool
+	fn, err := setRawIO()
+	if err == nil {
+		interactive = true
+		defer fn()
+	}
+
 	// default options
-	var optlist = []vm.Option{
-		vm.OptShrinkImage(*shrink),
+	var opts = []vm.Option{
+		vm.Shrink(*shrink),
 		// buffered io is faster
-		vm.OptOutput(bufio.NewWriter(os.Stdout)),
-		vm.OptInput(bufio.NewReader(os.Stdin)),
+		vm.Output(bufio.NewWriter(os.Stdout)),
+	}
+
+	// buffer input if not interactive
+	if interactive {
+		opts = append(opts, vm.Input(os.Stdin))
+	} else {
+		opts = append(opts, vm.Input(bufio.NewReader(os.Stdin)))
 	}
 
 	// append withFile to the input stack
 	if len(*withFile) > 0 {
-		f, err := os.Open(*withFile)
+		var f *os.File
+		f, err = os.Open(*withFile)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return
 		}
-		optlist = append(optlist, vm.OptInput(f))
+		opts = append(opts, vm.Input(bufio.NewReader(f)))
 	}
 
 	img, err := vm.Load(*fileName, *size)
 	if err != nil {
-		handleErr(err)
+		return
 	}
-	proc := vm.New(img, *fileName, optlist...)
-	err = proc.Run(len(proc.Image))
+	proc, err := vm.New(img, *fileName, opts...)
 	if err != nil {
-		handleErr(err)
+		return
+	}
+	err = proc.Run(len(proc.Image))
+	// filter out EOF
+	if e := errors.Cause(err); e == io.EOF {
+		err = nil
 	}
 }

@@ -18,7 +18,10 @@ import (
 type C []vm.Cell
 
 func setup(code, stack, rstack C) *vm.Instance {
-	i := vm.New(vm.Image(code), "")
+	i, err := vm.New(vm.Image(code), "")
+	if err != nil {
+		panic(err)
+	}
 	for _, v := range stack {
 		i.Push(v)
 	}
@@ -125,14 +128,18 @@ func ExampleInstance_Run() {
 
 	// Setup the VM instance with os.Stdin as first reader, and we push another
 	// reader with some custom init code that will include and run the retro core tests.
-	i := vm.New(img, imageFile,
-		vm.OptInput(os.Stdin),
-		vm.OptInput(strings.NewReader("\"testdata/core.rx\" :include\n")),
-		vm.OptOutput(output))
+	i, err := vm.New(img, imageFile,
+		vm.Input(os.Stdin),
+		vm.Input(strings.NewReader("\"testdata/core.rx\" :include\n")),
+		vm.Output(output))
 
 	// run it
-	err = i.Run(len(i.Image))
+	if err == nil {
+		err = i.Run(len(i.Image))
+	}
 	if err != nil {
+		// in interactive use, err may be io.EOF if any of the IO channels gets closed
+		// in which case this would be a normal exit condition
 		panic(err)
 	}
 
@@ -162,8 +169,10 @@ func BenchmarkRun(b *testing.B) {
 			b.Fatalf("%+v\n", err)
 		}
 		input.Seek(0, 0)
-		proc := vm.New(img, imageFile,
-			vm.OptInput(input))
+		proc, err := vm.New(img, imageFile, vm.Input(input))
+		if err != nil {
+			panic(err)
+		}
 
 		n := time.Now()
 		b.StartTimer()

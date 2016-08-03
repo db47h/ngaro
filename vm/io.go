@@ -26,9 +26,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-// flusher wraps the Flush method.
-type flusher interface {
-	Flush() error
+// Flusher is the interface that adds the Flush method to the basic io.Writer
+// interface. If a Flusher is provided as a VM instance's output, its Flush
+// method will be called in order to write any buffered data. This is required
+// in interactive I/O mode with buffered writers where all buffered output must
+// be written before prompting the user for input.
+type Flusher interface {
+	io.Writer
+	Flush() error // Flush writes any buffered data to the underlying io.Writer.
 }
 
 // readWriter wraps the WriteRune method. Works the same ad bufio.Writer.WriteRune.
@@ -63,7 +68,7 @@ func (w *runeWriterWrapper) WriteRune(r rune) (size int, err error) {
 
 // Flush is only a proxy for the wrapped reader's own Flush method if implemented.
 func (w *runeWriterWrapper) Flush() error {
-	if f, ok := w.Writer.(flusher); ok {
+	if f, ok := w.Writer.(Flusher); ok {
 		return f.Flush()
 	}
 	return nil

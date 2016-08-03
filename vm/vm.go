@@ -16,7 +16,7 @@
 
 // Package vm blah.
 // TODO:
-//	- switch to raw stdio
+//	- port i/o hooks
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
 //	- add a disasm func
@@ -75,44 +75,31 @@ const (
 )
 
 // Option interface
-type Option interface {
-	set(p *Instance)
+type Option func(*Instance) error
+
+// DataSize sets the data stack size.
+func DataSize(size int) Option {
+	return func(i *Instance) error { i.data = make([]Cell, size); return nil }
 }
 
-type optionFunc func(p *Instance)
-
-func (f optionFunc) set(p *Instance) {
-	f(p)
+// AddressSize sets the address stack size.
+func AddressSize(size int) Option {
+	return func(i *Instance) error { i.address = make([]Cell, size); return nil }
 }
 
-// OptDataSize sets the data stack size.
-func OptDataSize(size int) Option {
-	var f optionFunc = func(i *Instance) { i.data = make([]Cell, size) }
-	return f
+// Input pushes the given RuneReader on top of the input stack.
+func Input(r io.Reader) Option {
+	return func(i *Instance) error { i.PushInput(r); return nil }
 }
 
-// OptAddressSize sets the address stack size.
-func OptAddressSize(size int) Option {
-	var f optionFunc = func(i *Instance) { i.address = make([]Cell, size) }
-	return f
+// Output sets the output Writer.
+func Output(w io.Writer) Option {
+	return func(i *Instance) error { i.output = newWriter(w); return nil }
 }
 
-// OptInput adds the given RuneReader to the list of inputs.
-func OptInput(r io.Reader) Option {
-	var f optionFunc = func(i *Instance) { i.PushInput(r) }
-	return f
-}
-
-// OptOutput sets the output Writer.
-func OptOutput(w io.Writer) Option {
-	var f optionFunc = func(i *Instance) { i.output = newWriter(w) }
-	return f
-}
-
-// OptShrinkImage enables or disables image shrinking when saving it.
-func OptShrinkImage(shrink bool) Option {
-	var f optionFunc = func(i *Instance) { i.shrink = shrink }
-	return f
+// Shrink enables or disables image shrinking when saving it.
+func Shrink(shrink bool) Option {
+	return func(i *Instance) error { i.shrink = shrink; return nil }
 }
 
 // Instance represents an ngaro VM instance.
@@ -132,7 +119,7 @@ type Instance struct {
 }
 
 // New creates a new Ngaro Virtual Machine instance.
-func New(image Image, imageFile string, opts ...Option) *Instance {
+func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 	i := &Instance{
 		PC:        0,
 		sp:        -1,
@@ -142,7 +129,9 @@ func New(image Image, imageFile string, opts ...Option) *Instance {
 		imageFile: imageFile,
 	}
 	for _, opt := range opts {
-		opt.set(i)
+		if err := opt(i); err != nil {
+			return nil, err
+		}
 	}
 	if i.data == nil {
 		i.data = make([]Cell, 1024)
@@ -150,7 +139,7 @@ func New(image Image, imageFile string, opts ...Option) *Instance {
 	if i.address == nil {
 		i.address = make([]Cell, 1024)
 	}
-	return i
+	return i, nil
 }
 
 // Data returns the data stack. Note that value changes will be reflected in the
