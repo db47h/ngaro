@@ -26,24 +26,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Flusher is the interface that adds the Flush method to the basic io.Writer
-// interface. If a Flusher is provided as a VM instance's output, its Flush
-// method will be called in order to write any buffered data. This is required
-// in interactive I/O mode with buffered writers where all buffered output must
-// be written before prompting the user for input.
-type Flusher interface {
-	io.Writer
-	Flush() error // Flush writes any buffered data to the underlying io.Writer.
-}
-
 // readWriter wraps the WriteRune method. Works the same ad bufio.Writer.WriteRune.
 type runeWriter interface {
 	WriteRune(r rune) (size int, err error)
 }
 
-// runeWriterWrapper wraps a plain io.Reader into a runeWriter and flusher.
-// Flush() only works as a proxy for the wrapped Reader's own Flush method if
-// implemented.
+// runeWriterWrapper wraps a plain io.Reader into a runeWriter.
 type runeWriterWrapper struct {
 	io.Writer
 }
@@ -64,14 +52,6 @@ func (w *runeWriterWrapper) WriteRune(r rune) (size int, err error) {
 	}
 	l := utf8.EncodeRune(b[:], r)
 	return w.Writer.Write(b[0:l])
-}
-
-// Flush is only a proxy for the wrapped reader's own Flush method if implemented.
-func (w *runeWriterWrapper) Flush() error {
-	if f, ok := w.Writer.(Flusher); ok {
-		return f.Flush()
-	}
-	return nil
 }
 
 // newWriter returns either w if it implements runeWriter or wraps it up into
@@ -170,9 +150,22 @@ func (i *Instance) PushInput(r io.Reader) {
 	}
 }
 
+// out writes the value c to the given port. This will also set port 0 to 1.
 func (i *Instance) out(v Cell, port int) {
 	i.ports[port] = v
 	i.ports[0] = 1
+}
+
+func (i *Instance) waitHandler(port int) (err error) {
+	v := i.ports[port]
+	if h := i.waitH[port]; h != nil {
+		v, err = h(v)
+		if err == nil {
+			i.out(v, port)
+		}
+		return err
+	}
+	return ErrUnhandled
 }
 
 func (i *Instance) ioWait() error {
@@ -182,72 +175,125 @@ func (i *Instance) ioWait() error {
 
 	// input
 	if i.ports[1] == 1 {
-		r, size, err := i.input.ReadRune()
-		if size > 0 {
-			i.out(Cell(r), 1)
-		} else {
-			i.out(utf8.RuneError, 1)
-			if err != nil {
-				return errors.Wrap(err, "ioWait input")
+		err := i.waitHandler(1)
+		switch err {
+		case ErrUnhandled:
+			var r rune
+			var size int
+			r, size, err = i.input.ReadRune()
+			if size > 0 {
+				i.out(Cell(r), 1)
+			} else {
+				i.out(utf8.RuneError, 1)
+				if err != nil {
+					return errors.Wrap(err, "ioWait input")
+				}
 			}
+		case nil:
+		default:
+			return err
 		}
 	}
 
 	// output
 	if i.ports[2] == 1 {
-		r := rune(i.Pop())
-		if i.output != nil {
-			_, err := i.output.WriteRune(r)
-			if err != nil {
-				// p.ip = len(p.mem)
-				return errors.Wrap(err, "ioWait output")
+		err := i.waitHandler(2)
+		switch err {
+		case ErrUnhandled:
+			r := rune(i.Pop())
+			if i.output != nil {
+				_, err = i.output.WriteRune(r)
+				if err != nil {
+					return errors.Wrap(err, "ioWait output")
+				}
 			}
+			i.out(0, 2)
+		case nil:
+		default:
+			return err
 		}
-		i.out(0, 2)
+	}
+
+	if i.ports[3] == 1 {
+		err := i.waitHandler(3)
+		switch err {
+		case ErrUnhandled:
+		case nil:
+		default:
+			return err
+		}
 	}
 
 	// File io
 	if i.ports[4] != 0 {
-		i.ports[0] = 1
-		switch i.ports[4] {
-		case 1: // save image
-			i.Image.Save(i.imageFile, i.shrink)
-			i.ports[4] = 0
-		case 2: // include file
-			i.ports[4] = 0
-			f, err := os.Open(i.Image.DecodeString(int(i.Pop())))
-			if err != nil {
-				return errors.Wrap(err, "Include failed")
+		err := i.waitHandler(4)
+		switch err {
+		case ErrUnhandled:
+			i.ports[0] = 1
+			switch i.ports[4] {
+			case 1: // save image
+				i.Image.Save(i.imageFile, i.shrink)
+				i.ports[4] = 0
+			case 2: // include file
+				i.ports[4] = 0
+				var f *os.File
+				f, err = os.Open(i.Image.DecodeString(int(i.Pop())))
+				if err != nil {
+					return errors.Wrap(err, "Include failed")
+				}
+				i.PushInput(f)
+			default:
+				i.ports[4] = 0
 			}
-			i.PushInput(f)
+		case nil:
 		default:
-			i.ports[4] = 0
+			return err
 		}
 	}
 
 	if i.ports[5] != 0 {
-		switch i.ports[5] {
-		case -1: // mem size
-			i.ports[5] = Cell(len(i.Image))
-		case -5:
-			i.ports[5] = Cell(i.sp + 1)
-		case -6:
-			i.ports[5] = Cell(i.rsp + 1)
-		case -8:
-			i.ports[5] = Cell(time.Now().Unix())
-		case -9:
-			i.ports[5] = 0
-			i.PC = len(i.Image) - 1 // will be incremented when returning
-		case -13:
-			i.ports[5] = Cell(unsafe.Sizeof(i.ports[0]) * 8)
-		case -16:
-			i.ports[5] = Cell(len(i.data))
-		case -17:
-			i.ports[5] = Cell(len(i.address))
+		err := i.waitHandler(5)
+		switch err {
+		case ErrUnhandled:
+			switch i.ports[5] {
+			case -1: // mem size
+				i.ports[5] = Cell(len(i.Image))
+			case -5:
+				i.ports[5] = Cell(i.sp + 1)
+			case -6:
+				i.ports[5] = Cell(i.rsp + 1)
+			case -8:
+				i.ports[5] = Cell(time.Now().Unix())
+			case -9:
+				i.ports[5] = 0
+				i.PC = len(i.Image) - 1 // will be incremented when returning
+			case -13:
+				i.ports[5] = Cell(unsafe.Sizeof(i.ports[0]) * 8)
+			case -16:
+				i.ports[5] = Cell(len(i.data))
+			case -17:
+				i.ports[5] = Cell(len(i.address))
+			default:
+				i.ports[5] = 0
+			}
+			i.ports[0] = 1
+		case nil:
 		default:
-			i.ports[5] = 0
+			return err
 		}
-		i.ports[0] = 1
 	}
+
+	customPort := 6
+
+	for p, h := range i.waitH {
+		if p >= customPort {
+			v, err := h(i.ports[p])
+			if err != nil {
+				return err
+			}
+			i.out(v, p)
+		}
+	}
+
 	return nil
 }

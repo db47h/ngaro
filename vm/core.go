@@ -18,6 +18,43 @@ package vm
 
 import "github.com/pkg/errors"
 
+type opcode Cell
+
+// ngaro Virtual Machine Opcodes.
+const (
+	OpNop opcode = iota
+	OpLit
+	OpDup
+	OpDrop
+	OpSwap
+	OpPush
+	OpPop
+	OpLoop
+	OpJump
+	OpReturn
+	OpGtJump
+	OpLtJump
+	OpNeJump
+	OpEqJump
+	OpFetch
+	OpStore
+	OpAdd
+	OpSub
+	OpMul
+	OpDimod
+	OpAnd
+	OpOr
+	OpXor
+	OpShl
+	OpShr
+	OpZeroExit
+	OpInc
+	OpDec
+	OpIn
+	OpOut
+	OpWait
+)
+
 // Push pushes the argument on top of the data stack.
 func (i *Instance) Push(v Cell) {
 	i.sp++
@@ -53,7 +90,11 @@ func (i *Instance) Rpop() Cell {
 func (i *Instance) Run(toPC int) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = errors.Errorf("%v", e)
+			var ok bool
+			if err, ok = e.(error); !ok {
+				panic(e)
+			}
+			err = errors.Wrap(err, "VM abort")
 		}
 	}()
 	i.insCount = 0
@@ -186,26 +227,33 @@ func (i *Instance) Run(toPC int) (err error) {
 			i.PC++
 		case OpIn:
 			port := i.data[i.sp]
-			i.data[i.sp], i.ports[port] = i.ports[port], 0
+			v := i.ports[port]
+			if h := i.inH[int(port)]; h != nil {
+				v, err = h(v)
+				if err != nil {
+					return err
+				}
+			}
+			i.data[i.sp], i.ports[port] = v, 0
 			i.PC++
 		case OpOut:
 			port := i.data[i.sp]
-			i.ports[port] = i.data[i.sp-1]
-			i.sp -= 2
-			if port == 3 {
-				if o, ok := i.output.(Flusher); ok {
-					o.Flush()
+			v := i.data[i.sp-1]
+			if h := i.outH[int(port)]; h != nil {
+				v, err = h(v)
+				if err != nil {
+					return err
 				}
 			}
+			i.ports[port] = v
+			i.sp -= 2
 			i.PC++
 		case OpWait:
 			err = i.ioWait()
-			switch err.(type) {
-			case nil:
-				i.PC++
-			default:
+			if err != nil {
 				return err
 			}
+			i.PC++
 		default:
 			i.rsp++
 			i.address[i.rsp], i.PC = Cell(i.PC), int(op)

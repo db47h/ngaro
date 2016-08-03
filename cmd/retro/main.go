@@ -27,21 +27,35 @@ import (
 	"github.com/pkg/errors"
 )
 
+var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
+var withFile = flag.String("with", "", "Add `filename` to the input stack")
+var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
+var size = flag.Int("size", 50000, "image size in cells")
+var debug = flag.Bool("debug", false, "enable debug diagnostics")
+
 func main() {
 	// check exit condition
 	var err error
+	var proc *vm.Instance
 	defer func() {
-		if err != nil {
-			err = errors.Cause(err)
-			fmt.Fprintf(os.Stderr, "%+v\n", err)
+		if err == nil {
+			return
+		}
+		if !*debug {
+			fmt.Fprintf(os.Stderr, "\n%v\n", err)
 			os.Exit(1)
 		}
+		fmt.Fprintf(os.Stderr, "\n%+#v\n", err)
+		if proc != nil {
+			if proc.PC < len(proc.Image) {
+				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())
+			} else {
+				fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nRet:  %v\n", proc.PC, proc.Data(), proc.Address())
+			}
+		}
+		os.Exit(1)
 	}()
 
-	var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
-	var withFile = flag.String("with", "", "Add `filename` to the input stack")
-	var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
-	var size = flag.Int("size", 50000, "image size in cells")
 	flag.Parse()
 
 	var interactive bool
@@ -52,10 +66,16 @@ func main() {
 	}
 
 	// default options
+	output := bufio.NewWriter(os.Stdout)
 	var opts = []vm.Option{
 		vm.Shrink(*shrink),
 		// buffered io is faster
-		vm.Output(bufio.NewWriter(os.Stdout)),
+		vm.Output(output),
+		// handle Flush events
+		vm.OutHandler(3, func(vm.Cell) (vm.Cell, error) {
+			output.Flush()
+			return 0, nil
+		}),
 	}
 
 	// buffer input if not interactive
@@ -79,7 +99,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	proc, err := vm.New(img, *fileName, opts...)
+	proc, err = vm.New(img, *fileName, opts...)
 	if err != nil {
 		return
 	}

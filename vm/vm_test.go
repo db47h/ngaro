@@ -3,6 +3,7 @@
 package vm_test
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -151,6 +152,43 @@ func ExampleInstance_Run() {
 	// Output:
 	// 360 tests run: 360 passed, 0 failed.
 	// 186 words checked, 0 words unchecked, 37 i/o words ignored.
+}
+
+// Shows how to setup a port handler.
+func ExampleOutHandler() {
+	imageFile := "testdata/retroImage"
+	img, err := vm.Load(imageFile, 0)
+	if err != nil {
+		panic(err)
+	}
+
+	// we will use a buffered stdout
+	output := bufio.NewWriter(os.Stdout)
+	// so according to the spec, we should flush the output as soon as port 3
+	// is written to:
+	outputHandler := func(v vm.Cell) (vm.Cell, error) {
+		output.Flush()
+		return 0, nil
+	}
+
+	i, err := vm.New(img, imageFile,
+		vm.Input(strings.NewReader("6 7 * putn\n")),
+		vm.Output(output),
+		vm.OutHandler(3, outputHandler))
+	if err != nil {
+		panic(err)
+	}
+
+	if err = i.Run(len(i.Image)); err != nil && errors.Cause(err) != io.EOF {
+		fmt.Fprintf(os.Stderr, "%+v\n", err)
+	}
+	// Retro 11.7.1
+	//
+	// ok  6
+	// ok  7
+	// ok  *
+	// ok  putn 42
+	// ok
 }
 
 func BenchmarkRun(b *testing.B) {

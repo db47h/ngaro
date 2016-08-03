@@ -14,59 +14,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package vm blah.
+// Package vm implements the Ngaro VM.
 // TODO:
-//	- port i/o hooks
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
 //	- add a disasm func
-//	- implement communication with host go program via channels (in io)
-//	- go routines that leverage channels (watch out for the panic handler, we should have a global `done` channel)
+//	- go routines
 //	- BUG: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
 //		-1 5 out 0 0 out wait 5 in putn
 package vm
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
 // Cell is the raw type stored in a memory location.
 type Cell int32
-
-type opcode Cell
-
-// ngaro Virtual Machine Opcodes.
-const (
-	OpNop opcode = iota
-	OpLit
-	OpDup
-	OpDrop
-	OpSwap
-	OpPush
-	OpPop
-	OpLoop
-	OpJump
-	OpReturn
-	OpGtJump
-	OpLtJump
-	OpNeJump
-	OpEqJump
-	OpFetch
-	OpStore
-	OpAdd
-	OpSub
-	OpMul
-	OpDimod
-	OpAnd
-	OpOr
-	OpXor
-	OpShl
-	OpShr
-	OpZeroExit
-	OpInc
-	OpDec
-	OpIn
-	OpOut
-	OpWait
-)
 
 const (
 	portCount   = 64
@@ -77,14 +41,32 @@ const (
 // Option interface
 type Option func(*Instance) error
 
-// DataSize sets the data stack size.
+// DataSize sets the data stack size. It will not erase the stack, but data nay
+// be lost if set to a smaller size.
 func DataSize(size int) Option {
-	return func(i *Instance) error { i.data = make([]Cell, size); return nil }
+	return func(i *Instance) error {
+		if size <= len(i.data) {
+			i.data = i.data[:size]
+		} else {
+			t := make([]Cell, size)
+			copy(t, i.data[:i.sp+1])
+		}
+		return nil
+	}
 }
 
-// AddressSize sets the address stack size.
+// AddressSize sets the address stack size. It will not erase the stack, but data nay
+// be lost if set to a smaller size.
 func AddressSize(size int) Option {
-	return func(i *Instance) error { i.address = make([]Cell, size); return nil }
+	return func(i *Instance) error {
+		if size <= len(i.address) {
+			i.data = i.address[:size]
+		} else {
+			t := make([]Cell, size)
+			copy(t, i.address[:i.rsp+1])
+		}
+		return nil
+	}
 }
 
 // Input pushes the given RuneReader on top of the input stack.
@@ -102,6 +84,61 @@ func Shrink(shrink bool) Option {
 	return func(i *Instance) error { i.shrink = shrink; return nil }
 }
 
+// ErrUnhandled is a sentinel error for WAIT handlers. See WaitHandler.
+var ErrUnhandled = errors.New("Unknown port value")
+
+// IOCallback is a port IN/OUT handler function.
+type IOCallback func(old Cell) (new Cell, err error)
+
+// InHandler will make any IN on the given port call the provided hadler.
+// The actual port value will be passed to the handler and the handler's return
+// value will be pushed onto the stack. An example no-op handler:
+//
+//	func handleIn(v vm.Cell) (vm.Cell, error) {
+//		return v
+//	}
+func InHandler(port Cell, handler IOCallback) Option {
+	return func(i *Instance) error {
+		i.inH[int(port)] = handler
+		return nil
+	}
+}
+
+// OutHandler will make any OUT on the given port call the provided hadler.
+// The OUT value will be passed to the handler and the handler's return value
+// will be written to the port.
+func OutHandler(port Cell, handler IOCallback) Option {
+	return func(i *Instance) error {
+		i.outH[int(port)] = handler
+		return nil
+	}
+}
+
+// WaitHandler will make any WAIT on the given port call the provided hadler.
+// The port value will be passed to the handler and the handler's return value
+// will be written to the port.
+//
+// The handler will only be called if port 0 value is 0 and if the bound port
+// value is != 0. Wait handlers can be used to override default port behaviour.
+// If the returned error is ErrUnhandled, the returned value and error will be
+// ignored, and the default implementation will handle the WAIT.
+func WaitHandler(port int, handler IOCallback) Option {
+	return func(i *Instance) error {
+		i.waitH[port] = handler
+		return nil
+	}
+}
+
+// SetOptions sets the provided options.
+func (i *Instance) SetOptions(opts ...Option) error {
+	for _, opt := range opts {
+		if err := opt(i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Instance represents an ngaro VM instance.
 type Instance struct {
 	PC        int
@@ -111,6 +148,9 @@ type Instance struct {
 	data      []Cell
 	address   []Cell
 	ports     []Cell
+	inH       map[int]IOCallback
+	outH      map[int]IOCallback
+	waitH     map[int]IOCallback
 	imageFile string
 	shrink    bool
 	input     io.RuneReader
@@ -126,12 +166,13 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		rsp:       -1,
 		Image:     image,
 		ports:     make([]Cell, portCount),
+		inH:       make(map[int]IOCallback, portCount),
+		outH:      make(map[int]IOCallback, portCount),
+		waitH:     make(map[int]IOCallback, portCount),
 		imageFile: imageFile,
 	}
-	for _, opt := range opts {
-		if err := opt(i); err != nil {
-			return nil, err
-		}
+	if err := i.SetOptions(opts...); err != nil {
+		return nil, err
 	}
 	if i.data == nil {
 		i.data = make([]Cell, 1024)
@@ -146,14 +187,20 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 // instance's stack, but reslicing will not affect it. To add/remove values on
 // the data stack, use the Push and Pop functions.
 func (i *Instance) Data() []Cell {
-	return i.data[:i.sp+1]
+	if i.sp < len(i.data) {
+		return i.data[:i.sp+1]
+	}
+	return i.data
 }
 
 // Address returns the address stack. Note that value changes will be reflected
 // in the instance's stack, but reslicing will not affect it. To add/remove
 // values on the address stack, use the Rpush and Rpop functions.
 func (i *Instance) Address() []Cell {
-	return i.address[:i.rsp+1]
+	if i.rsp < len(i.address) {
+		return i.address[:i.rsp+1]
+	}
+	return i.address
 }
 
 // InstructionCount returns the number of instructions executed so far.
