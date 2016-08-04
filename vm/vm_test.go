@@ -129,7 +129,7 @@ func TestLoop(t *testing.T) {
 
 // TODO: make more...
 
-var fib = []vm.Opcode{
+var fib = []vm.Cell{
 	vm.OpPush,
 	vm.OpLit, 0,
 	vm.OpLit, 1,
@@ -147,7 +147,7 @@ var fib = []vm.Opcode{
 	vm.OpDrop,
 }
 
-var nFib = []vm.Opcode{
+var nFib = []vm.Cell{
 	vm.OpJump, 32,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	44, // call
@@ -174,20 +174,12 @@ var nFib = []vm.Opcode{
 }
 
 func Test_Fib_AsmLoop(t *testing.T) {
-	f := make(C, len(fib))
-	for i := range fib {
-		f[i] = vm.Cell(fib[i])
-	}
-	p := setup(f, C{30}, nil)
+	p := setup(fib, C{30}, nil)
 	check(t, p, 0, C{832040}, nil)
 }
 
 func Test_Fib_AsmRecursive(t *testing.T) {
-	f := make(C, len(nFib))
-	for i := range nFib {
-		f[i] = vm.Cell(nFib[i])
-	}
-	p := setup(f, C{30}, nil)
+	p := setup(nFib, C{30}, nil)
 	check(t, p, 0, C{832040}, nil)
 }
 

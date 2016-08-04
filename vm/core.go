@@ -16,12 +16,9 @@
 
 package vm
 
-// Opcode represents an Ngaro VM opcode.
-type Opcode Cell
-
 // Ngaro Virtual Machine Opcodes.
 const (
-	OpNop Opcode = iota
+	OpNop Cell = iota
 	OpLit
 	OpDup
 	OpDrop
@@ -93,7 +90,7 @@ func (i *Instance) Rpop() Cell {
 func (i *Instance) Run() (err error) {
 	i.insCount = 0
 	for i.PC < len(i.Image) {
-		op := Opcode(i.Image[i.PC])
+		op := i.Image[i.PC]
 		switch op {
 		case OpNop:
 			i.PC++

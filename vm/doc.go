@@ -20,7 +20,7 @@
 // language and the Ngaro Virtual Machine.
 //
 // This implementation allows communication between Retro programs and Go
-// programs via custom I/O handlers (i.e. scripting Go programs from Retro). The
+// programs via custom I/O handlers (i.e. scripting Go programs in Retro). The
 // package examples demonstrate various use cases. For more details on I/O
 // handling in the Ngaro VM, please refer to
 // http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
@@ -37,8 +37,8 @@
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
 //	- add a disassembly function.
-//	- go routines
-//	- BUG: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
+//	- go routines in cmd/retro
+//	- Caveat that needs documentation: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
 //		-1 5 out 0 0 out wait 5 in putn
 //
 package vm
