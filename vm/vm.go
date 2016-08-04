@@ -18,7 +18,7 @@
 // TODO:
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
-//	- add a disasm func
+//	- add a disassembly function.
 //	- go routines
 //	- BUG: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
 //		-1 5 out 0 0 out wait 5 in putn
@@ -110,7 +110,7 @@ func InHandler(port Cell, handler IOCallback) Option {
 	}
 }
 
-// OutHandler will make any OUT on the given port call the provided hadler.
+// OutHandler will make any OUT on the given port call the provided handler.
 // The OUT value will be passed to the handler and the handler's return value
 // will be written to the port.
 func OutHandler(port Cell, handler IOCallback) Option {
@@ -120,12 +120,12 @@ func OutHandler(port Cell, handler IOCallback) Option {
 	}
 }
 
-// WaitHandler will make any WAIT on the given port call the provided hadler.
+// WaitHandler will make any WAIT on the given port call the provided handler.
 // The port value will be passed to the handler and the handler's return value
 // will be written to the port.
 //
 // The handler will only be called if port 0 value is 0 and if the bound port
-// value is != 0. Wait handlers can be used to override default port behaviour.
+// value is != 0. Wait handlers can be used to override default port behavior.
 // If the returned error is ErrUnhandled, the returned value and error will be
 // ignored, and the default implementation will handle the WAIT.
 func WaitHandler(port int, handler IOCallback) Option {
@@ -145,7 +145,7 @@ func (i *Instance) SetOptions(opts ...Option) error {
 	return nil
 }
 
-// Instance represents an ngaro VM instance.
+// Instance represents an Ngaro VM instance.
 type Instance struct {
 	PC        int
 	sp        int
@@ -191,7 +191,7 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 }
 
 // Data returns the data stack. Note that value changes will be reflected in the
-// instance's stack, but reslicing will not affect it. To add/remove values on
+// instance's stack, but re-slicing will not affect it. To add/remove values on
 // the data stack, use the Push and Pop functions.
 func (i *Instance) Data() []Cell {
 	if i.sp < len(i.data) {
@@ -201,7 +201,7 @@ func (i *Instance) Data() []Cell {
 }
 
 // Address returns the address stack. Note that value changes will be reflected
-// in the instance's stack, but reslicing will not affect it. To add/remove
+// in the instance's stack, but re-slicing will not affect it. To add/remove
 // values on the address stack, use the Rpush and Rpop functions.
 func (i *Instance) Address() []Cell {
 	if i.rsp < len(i.address) {

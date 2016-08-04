@@ -35,7 +35,7 @@ func setup(code, stack, rstack C) *vm.Instance {
 }
 
 func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
-	err := i.Run(len(i.Image))
+	err := i.Run()
 	if err != nil {
 		t.Errorf("%+v", err)
 		return
@@ -138,7 +138,7 @@ func ExampleInstance_Run() {
 
 	// run it
 	if err == nil {
-		err = i.Run(len(i.Image))
+		err = i.Run()
 	}
 	if err != nil {
 		// in interactive use, err may be io.EOF if any of the IO channels gets closed
@@ -181,7 +181,7 @@ func ExampleOutHandler() {
 		panic(err)
 	}
 
-	if err = i.Run(len(i.Image)); err != nil && errors.Cause(err) != io.EOF {
+	if err = i.Run(); err != nil && errors.Cause(err) != io.EOF {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 	}
 	// Retro 11.7.1
@@ -260,7 +260,7 @@ func Test_Fib_RetroLoop(t *testing.T) {
 	img, _ := vm.Load(imageFile, 50000)
 	i, _ := vm.New(img, imageFile,
 		vm.Input(strings.NewReader(fib)))
-	i.Run(len(i.Image))
+	i.Run()
 	for c := len(i.Address()); c > 0; c-- {
 		i.Rpop()
 	}
@@ -275,7 +275,7 @@ func Benchmark_Fib_AsmLoop(b *testing.B) {
 	i := setup(f, C{35}, nil)
 	for c := 0; c < b.N; c++ {
 		i.PC = 0
-		i.Run(len(i.Image))
+		i.Run()
 		i.Pop()
 		i.Push(35)
 	}
@@ -289,7 +289,7 @@ func Benchmark_Fib_AsmRecursive(b *testing.B) {
 	i := setup(f, C{35}, nil)
 	for c := 0; c < b.N; c++ {
 		i.PC = 0
-		i.Run(len(i.Image))
+		i.Run()
 		i.Pop()
 		i.Push(35)
 	}
@@ -303,7 +303,7 @@ func Benchmark_Fib_RetroLoop(b *testing.B) {
 		i, _ := vm.New(img, imageFile,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
-		i.Run(len(i.Image))
+		i.Run()
 	}
 }
 
@@ -315,7 +315,7 @@ func Benchmark_Fib_RetroRecursive(b *testing.B) {
 		i, _ := vm.New(img, imageFile,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
-		i.Run(len(i.Image))
+		i.Run()
 	}
 }
 
@@ -342,7 +342,7 @@ func BenchmarkRun(b *testing.B) {
 		n := time.Now()
 		b.StartTimer()
 
-		err = proc.Run(len(proc.Image))
+		err = proc.Run()
 
 		b.StopTimer()
 		el := time.Now().Sub(n).Seconds()

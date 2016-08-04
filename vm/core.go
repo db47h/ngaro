@@ -21,7 +21,7 @@ import "github.com/pkg/errors"
 // Opcode represents an Ngaro VM opcode.
 type Opcode Cell
 
-// ngaro Virtual Machine Opcodes.
+// Ngaro Virtual Machine Opcodes.
 const (
 	OpNop Opcode = iota
 	OpLit
@@ -82,13 +82,17 @@ func (i *Instance) Rpop() Cell {
 	return i.address[rsp]
 }
 
-// Run starts execution of the VM until the program pointer reaches `toPC`.
+// Run starts execution of the VM.
+//
 // If an error occurs, the PC will will point to the instruction that triggered
 // the error.
 //
 // If the VM was exited cleanly from a user program with the `bye` word, the PC
 // will be equal to len(i.Image) and err will be nil.
-func (i *Instance) Run(toPC int) (err error) {
+//
+// If the last input stream gets closed, the VM will exit and return io.EOF.
+// This is a normal exit condition in most use cases.
+func (i *Instance) Run() (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			var ok bool

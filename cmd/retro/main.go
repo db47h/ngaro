@@ -103,7 +103,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	err = proc.Run(len(proc.Image))
+	err = proc.Run()
 	// filter out EOF
 	if e := errors.Cause(err); e == io.EOF {
 		err = nil
