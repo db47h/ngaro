@@ -78,9 +78,9 @@ func main() {
 		opts = append(opts,
 			vm.Input(bufio.NewReader(os.Stdin)),
 			vm.Output(output, false),
-			vm.OutHandler(3, func(v vm.Cell) (vm.Cell, error) {
+			vm.BindOutHandler(3, func(v, port vm.Cell) error {
 				output.Flush()
-				return 0, nil
+				return nil
 			}))
 	}
 

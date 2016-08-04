@@ -91,23 +91,9 @@ func (i *Instance) Rpop() Cell {
 // If the last input stream gets closed, the VM will exit and return io.EOF.
 // This is a normal exit condition in most use cases.
 func (i *Instance) Run() (err error) {
-	defer func() {
-		if e := recover(); e != nil {
-			var ok bool
-			if err, ok = e.(error); !ok {
-				panic(e)
-			}
-		}
-	}()
 	i.insCount = 0
 	for i.PC < len(i.Image) {
 		op := Opcode(i.Image[i.PC])
-		// fmt.Printf("% 8d\t%s", i.PC, op.Disasm())
-		// switch op {
-		// case OpLit, OpLoop, OpJump, OpGtJump, OpLtJump, OpEqJump, OpNeJump:
-		// 	fmt.Printf(" %d", int(i.Image[i.PC+1]))
-		// }
-		// fmt.Printf("\t%v\t%v\n", i.Data(), i.Address())
 		switch op {
 		case OpNop:
 			i.PC++
@@ -229,31 +215,38 @@ func (i *Instance) Run() (err error) {
 			i.PC++
 		case OpIn:
 			port := i.data[i.sp]
-			v := i.ports[port]
-			if h := i.inH[int(port)]; h != nil {
-				v, err = h(v)
-				if err != nil {
+			if h := i.inH[port]; h != nil {
+				i.sp--
+				if err = h(i.Ports[port], port); err != nil {
 					return err
 				}
+			} else {
+				// we're not calling i.In so that we can optimize out a Pop/Push
+				i.data[i.sp], i.Ports[port] = i.Ports[port], 0
 			}
-			i.data[i.sp], i.ports[port] = v, 0
 			i.PC++
 		case OpOut:
-			port := i.data[i.sp]
-			v := i.data[i.sp-1]
-			if h := i.outH[int(port)]; h != nil {
-				v, err = h(v)
-				if err != nil {
+			v, port := i.data[i.sp-1], i.data[i.sp]
+			i.sp -= 2
+			if h := i.outH[port]; h != nil {
+				if err = h(v, port); err != nil {
 					return err
 				}
+			} else {
+				i.Ports[port] = v
 			}
-			i.ports[port] = v
-			i.sp -= 2
 			i.PC++
 		case OpWait:
-			err = i.ioWait()
-			if err != nil {
-				return err
+			if i.Ports[0] != 1 {
+				for p, h := range i.waitH {
+					v := i.Ports[p]
+					if v == 0 {
+						continue
+					}
+					if err = h(v, p); err != nil {
+						return err
+					}
+				}
 			}
 			i.PC++
 		default:

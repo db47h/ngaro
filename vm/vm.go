@@ -14,20 +14,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package vm implements the Ngaro VM.
-// TODO:
-//	- complete file i/o
-//	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
-//	- add a disassembly function.
-//	- go routines
-//	- BUG: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
-//		-1 5 out 0 0 out wait 5 in putn
 package vm
 
-import (
-	"errors"
-	"io"
-)
+import "io"
 
 // Cell is the raw type stored in a memory location.
 type Cell int32
@@ -42,7 +31,7 @@ const (
 type Option func(*Instance) error
 
 // DataSize sets the data stack size. It will not erase the stack, but data nay
-// be lost if set to a smaller size.
+// be lost if set to a smaller size. The default is 1024 cells.
 func DataSize(size int) Option {
 	return func(i *Instance) error {
 		if size <= len(i.data) {
@@ -56,7 +45,7 @@ func DataSize(size int) Option {
 }
 
 // AddressSize sets the address stack size. It will not erase the stack, but data nay
-// be lost if set to a smaller size.
+// be lost if set to a smaller size. The default is 1024 cells.
 func AddressSize(size int) Option {
 	return func(i *Instance) error {
 		if size <= len(i.address) {
@@ -85,50 +74,54 @@ func Output(w io.Writer, isatty bool) Option {
 	}
 }
 
-// Shrink enables or disables image shrinking when saving it.
+// Shrink enables or disables image shrinking when saving it. The default is
+// false.
 func Shrink(shrink bool) Option {
 	return func(i *Instance) error { i.shrink = shrink; return nil }
 }
 
-// ErrUnhandled is a sentinel error for WAIT handlers. See WaitHandler.
-var ErrUnhandled = errors.New("Unknown port value")
+// IOHandler is the function prototype for custom IN/OUT/WAIT handlers.
+type IOHandler func(v, port Cell) error
 
-// IOCallback is a port IN/OUT handler function.
-type IOCallback func(old Cell) (new Cell, err error)
-
-// InHandler will make any IN on the given port call the provided hadler.
-// The actual port value will be passed to the handler and the handler's return
-// value will be pushed onto the stack. An example no-op handler:
+// BindInHandler binds the porvided IN handler to the given port.
 //
-//	func handleIn(v vm.Cell) (vm.Cell, error) {
-//		return v
-//	}
-func InHandler(port Cell, handler IOCallback) Option {
+// The default IN handler behaves according to the specification: it reads the
+// corresponding port value from Ports[port] and pushes it to the data stack.
+// After reading, the value of Ports[port] is reset to 0.
+//
+// Custom hamdlers do not strictly need to interract with Ports field. It is
+// however recommended that they behave the same as the default.
+func BindInHandler(port Cell, handler IOHandler) Option {
 	return func(i *Instance) error {
-		i.inH[int(port)] = handler
+		i.inH[port] = handler
 		return nil
 	}
 }
 
-// OutHandler will make any OUT on the given port call the provided handler.
-// The OUT value will be passed to the handler and the handler's return value
-// will be written to the port.
-func OutHandler(port Cell, handler IOCallback) Option {
+// BindOutHandler binds the porvided OUT handler to the given port.
+//
+// The default OUT handler just stores the given value in Ports[port].
+// A common use of OutHandler when using buffered I/O is to flush the output
+// writer when anything is written to port 3. Such handler just ignores the
+// written value, leaving Ports[3] as is.
+func BindOutHandler(port Cell, handler IOHandler) Option {
 	return func(i *Instance) error {
-		i.outH[int(port)] = handler
+		i.outH[port] = handler
 		return nil
 	}
 }
 
-// WaitHandler will make any WAIT on the given port call the provided handler.
-// The port value will be passed to the handler and the handler's return value
-// will be written to the port.
+// BindWaitHandler binds the porvided WAIT handler to the given port.
 //
-// The handler will only be called if port 0 value is 0 and if the bound port
-// value is != 0. Wait handlers can be used to override default port behavior.
-// If the returned error is ErrUnhandled, the returned value and error will be
-// ignored, and the default implementation will handle the WAIT.
-func WaitHandler(port int, handler IOCallback) Option {
+// WAIT handlers are called only if the value the following conditions are both
+// true:
+//
+//  - the value of the bound I/O port is not 0
+//  - the value of I/O port 0 is not 1
+//
+// Upon completion, a WAIT handler should call the WaitReply method which will
+// set the value of the bound port and set the value of port 0 to 1.
+func BindWaitHandler(port Cell, handler IOHandler) Option {
 	return func(i *Instance) error {
 		i.waitH[port] = handler
 		return nil
@@ -147,17 +140,17 @@ func (i *Instance) SetOptions(opts ...Option) error {
 
 // Instance represents an Ngaro VM instance.
 type Instance struct {
-	PC        int
+	PC        int    // Program Counter (aka. Instruction Pointer)
+	Image     Image  // Memory image
+	Ports     []Cell // I/O ports
 	sp        int
 	rsp       int
-	Image     Image
 	data      []Cell
 	address   []Cell
-	ports     []Cell
 	insCount  int64
-	inH       map[int]IOCallback
-	outH      map[int]IOCallback
-	waitH     map[int]IOCallback
+	inH       map[Cell]IOHandler
+	outH      map[Cell]IOHandler
+	waitH     map[Cell]IOHandler
 	imageFile string
 	shrink    bool
 	input     io.RuneReader
@@ -166,18 +159,33 @@ type Instance struct {
 }
 
 // New creates a new Ngaro Virtual Machine instance.
+//
+// The image parameter is the Cell array used as memory by the VM. Usually
+// loaded from file with the Load function.
+//
+// The imageFile parameter is the fileName that will be used to dump the
+// contents of the memory image. It does not have to exist or even be writable
+// as long as no user program requests an image dump.
+//
+// Options will be set by calling SetOptions.
 func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 	i := &Instance{
 		PC:        0,
 		sp:        -1,
 		rsp:       -1,
 		Image:     image,
-		ports:     make([]Cell, portCount),
-		inH:       make(map[int]IOCallback, portCount),
-		outH:      make(map[int]IOCallback, portCount),
-		waitH:     make(map[int]IOCallback, portCount),
+		Ports:     make([]Cell, portCount),
+		inH:       make(map[Cell]IOHandler),
+		outH:      make(map[Cell]IOHandler),
+		waitH:     make(map[Cell]IOHandler),
 		imageFile: imageFile,
 	}
+
+	// default Wait Handlers
+	for _, p := range []Cell{1, 2, 4, 5} {
+		i.waitH[p] = i.Wait
+	}
+
 	if err := i.SetOptions(opts...); err != nil {
 		return nil, err
 	}

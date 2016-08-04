@@ -148,61 +148,57 @@ func (i *Instance) PushInput(r io.Reader) {
 	}
 }
 
-// out writes the value c to the given port. This will also set port 0 to 1.
-func (i *Instance) out(v Cell, port int) {
-	i.ports[port] = v
-	i.ports[0] = 1
+// In is the default IN handler for all ports.
+func (i *Instance) In(port Cell) error {
+	i.Push(i.Ports[port])
+	i.Ports[port] = 0
+	return nil
 }
 
-func (i *Instance) waitHandler(port int) error {
-	if h := i.waitH[port]; h != nil {
-		v, err := h(i.ports[port])
-		if err == nil {
-			i.out(v, port)
-		}
-		return err
-	}
-	return ErrUnhandled
+// Out is the default OUT handler for all ports.
+func (i *Instance) Out(v, port Cell) error {
+	i.Ports[port] = v
+	return nil
 }
 
-func (i *Instance) ioWait() error {
-	if i.ports[0] == 1 {
+// WaitReply writes the value v to the given port and sets port 0 to 1. This
+// should only be used by WAIT port handlers.
+func (i *Instance) WaitReply(v, port Cell) {
+	i.Ports[port] = v
+	i.Ports[0] = 1
+}
+
+// Wait is the default WAIT handler bound to ports 1, 2, 4 and 5. It can be
+// called manually by custom handlers that override default behaviour.
+func (i *Instance) Wait(v, port Cell) error {
+	if v == 0 {
 		return nil
 	}
 
-	// input
-	if i.ports[1] == 1 {
-		err := i.waitHandler(1)
-		switch err {
-		case ErrUnhandled:
-			var r rune
-			var size int
-			r, size, err = i.input.ReadRune()
+	switch port {
+	case 1: // input
+		if v == 1 {
+			if i.input == nil {
+				return io.EOF
+			}
+			r, size, err := i.input.ReadRune()
 			if size > 0 {
 				if i.tty && r == 4 { // CTRL-D
 					return io.EOF
 				}
-				i.out(Cell(r), 1)
+				i.WaitReply(Cell(r), 1)
 			} else {
-				i.out(utf8.RuneError, 1)
+				i.WaitReply(utf8.RuneError, 1)
 				if err != nil {
 					return err
 				}
 			}
-		case nil:
-		default:
-			return err
 		}
-	}
-
-	// output
-	if i.ports[2] == 1 {
-		err := i.waitHandler(2)
-		switch err {
-		case ErrUnhandled:
+	case 2: // output
+		if v == 1 {
 			r := rune(i.Pop())
 			if i.output != nil {
-				_, err = i.output.WriteRune(r)
+				_, err := i.output.WriteRune(r)
 				if i.tty && r == 8 { // backspace, erase last char
 					_, err = i.output.WriteRune(32)
 					if err == nil {
@@ -213,93 +209,51 @@ func (i *Instance) ioWait() error {
 					return err
 				}
 			}
-			i.out(0, 2)
-		case nil:
-		default:
-			return err
+			i.WaitReply(0, 2)
 		}
-	}
-
-	if i.ports[3] == 1 {
-		err := i.waitHandler(3)
-		switch err {
-		case ErrUnhandled:
-		case nil:
-		default:
-			return err
-		}
-	}
-
-	// File io
-	if i.ports[4] != 0 {
-		err := i.waitHandler(4)
-		switch err {
-		case ErrUnhandled:
-			i.ports[0] = 1
-			switch i.ports[4] {
+	case 4: // FileIO
+		if v != 0 {
+			i.Ports[0] = 1
+			switch v {
 			case 1: // save image
 				i.Image.Save(i.imageFile, i.shrink)
-				i.ports[4] = 0
+				i.Ports[4] = 0
 			case 2: // include file
-				i.ports[4] = 0
-				var f *os.File
-				f, err = os.Open(i.Image.DecodeString(int(i.Pop())))
+				i.Ports[4] = 0
+				f, err := os.Open(i.Image.DecodeString(int(i.Pop())))
 				if err != nil {
 					return err
 				}
 				i.PushInput(f)
 			default:
-				i.ports[4] = 0
+				i.Ports[4] = 0
 			}
-		case nil:
-		default:
-			return err
 		}
-	}
-
-	if i.ports[5] != 0 {
-		err := i.waitHandler(5)
-		switch err {
-		case ErrUnhandled:
-			switch i.ports[5] {
+	case 5: // VM capabilities
+		if i.Ports[5] != 0 {
+			switch i.Ports[5] {
 			case -1: // mem size
-				i.ports[5] = Cell(len(i.Image))
+				i.Ports[5] = Cell(len(i.Image))
 			case -5:
-				i.ports[5] = Cell(i.sp + 1)
+				i.Ports[5] = Cell(i.sp + 1)
 			case -6:
-				i.ports[5] = Cell(i.rsp + 1)
+				i.Ports[5] = Cell(i.rsp + 1)
 			case -8:
-				i.ports[5] = Cell(time.Now().Unix())
+				i.Ports[5] = Cell(time.Now().Unix())
 			case -9:
-				i.ports[5] = 0
+				i.Ports[5] = 0
 				i.PC = len(i.Image) - 1 // will be incremented when returning
 			case -13:
-				i.ports[5] = Cell(unsafe.Sizeof(i.ports[0]) * 8)
+				i.Ports[5] = Cell(unsafe.Sizeof(i.Ports[0]) * 8)
 			case -16:
-				i.ports[5] = Cell(len(i.data))
+				i.Ports[5] = Cell(len(i.data))
 			case -17:
-				i.ports[5] = Cell(len(i.address))
+				i.Ports[5] = Cell(len(i.address))
 			default:
-				i.ports[5] = 0
+				i.Ports[5] = 0
 			}
-			i.ports[0] = 1
-		case nil:
-		default:
-			return err
+			i.Ports[0] = 1
 		}
 	}
-
-	customPort := 6
-
-	for p, h := range i.waitH {
-		if p >= customPort {
-			v, err := h(i.ports[p])
-			if err != nil {
-				return err
-			}
-			i.out(v, p)
-		}
-	}
-
 	return nil
 }
