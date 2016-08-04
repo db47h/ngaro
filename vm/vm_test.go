@@ -134,7 +134,7 @@ func ExampleInstance_Run() {
 	i, err := vm.New(img, imageFile,
 		vm.Input(os.Stdin),
 		vm.Input(strings.NewReader("\"testdata/core.rx\" :include\n")),
-		vm.Output(output))
+		vm.Output(output, false))
 
 	// run it
 	if err == nil {
@@ -175,7 +175,7 @@ func ExampleOutHandler() {
 
 	i, err := vm.New(img, imageFile,
 		vm.Input(strings.NewReader("6 7 * putn\n")),
-		vm.Output(output),
+		vm.Output(output, false),
 		vm.OutHandler(3, outputHandler))
 	if err != nil {
 		panic(err)

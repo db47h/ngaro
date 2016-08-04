@@ -156,10 +156,9 @@ func (i *Instance) out(v Cell, port int) {
 	i.ports[0] = 1
 }
 
-func (i *Instance) waitHandler(port int) (err error) {
-	v := i.ports[port]
+func (i *Instance) waitHandler(port int) error {
 	if h := i.waitH[port]; h != nil {
-		v, err = h(v)
+		v, err := h(i.ports[port])
 		if err == nil {
 			i.out(v, port)
 		}
@@ -182,7 +181,7 @@ func (i *Instance) ioWait() error {
 			var size int
 			r, size, err = i.input.ReadRune()
 			if size > 0 {
-				if r == 4 { // CTRL-D
+				if i.tty && r == 4 { // CTRL-D
 					return io.EOF
 				}
 				i.out(Cell(r), 1)
@@ -206,7 +205,7 @@ func (i *Instance) ioWait() error {
 			r := rune(i.Pop())
 			if i.output != nil {
 				_, err = i.output.WriteRune(r)
-				if r == 8 {
+				if i.tty && r == 8 { // backspace, erase last char
 					_, err = i.output.WriteRune(32)
 					if err == nil {
 						_, err = i.output.WriteRune(8)

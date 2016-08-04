@@ -31,6 +31,7 @@ var fileName = flag.String("image", "retroImage", "Use `filename` as the image t
 var withFile = flag.String("with", "", "Add `filename` to the input stack")
 var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
 var size = flag.Int("size", 50000, "image size in cells")
+var rawIO = flag.Bool("raw", true, "enable raw terminal IO")
 var debug = flag.Bool("debug", false, "enable debug diagnostics")
 
 func main() {
@@ -58,31 +59,30 @@ func main() {
 
 	flag.Parse()
 
-	var interactive bool
+	// default options
+	var opts = []vm.Option{
+		vm.Shrink(*shrink),
+	}
+
+	var rawtty bool
 	fn, err := setRawIO()
 	if err == nil {
-		interactive = true
+		rawtty = true
 		defer fn()
 	}
 
-	// default options
-	output := bufio.NewWriter(os.Stdout)
-	var opts = []vm.Option{
-		vm.Shrink(*shrink),
-		// buffered io is faster
-		vm.Output(output),
-		// handle Flush events
-		vm.OutHandler(3, func(vm.Cell) (vm.Cell, error) {
-			output.Flush()
-			return 0, nil
-		}),
-	}
-
-	// buffer input if not interactive
-	if interactive {
-		opts = append(opts, vm.Input(os.Stdin))
+	// buffer input if not raw tty
+	if rawtty {
+		opts = append(opts, vm.Input(os.Stdin), vm.Output(os.Stdout, true))
 	} else {
-		opts = append(opts, vm.Input(bufio.NewReader(os.Stdin)))
+		output := bufio.NewWriter(os.Stdout)
+		opts = append(opts,
+			vm.Input(bufio.NewReader(os.Stdin)),
+			vm.Output(output, false),
+			vm.OutHandler(3, func(v vm.Cell) (vm.Cell, error) {
+				output.Flush()
+				return 0, nil
+			}))
 	}
 
 	// append withFile to the input stack

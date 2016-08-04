@@ -16,7 +16,6 @@
 
 // Package vm implements the Ngaro VM.
 // TODO:
-//	- Propagate interactive flag to VM
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
 //	- add a disasm func
@@ -75,9 +74,15 @@ func Input(r io.Reader) Option {
 	return func(i *Instance) error { i.PushInput(r); return nil }
 }
 
-// Output sets the output Writer.
-func Output(w io.Writer) Option {
-	return func(i *Instance) error { i.output = newWriter(w); return nil }
+// Output sets the output Writer. If the isatty flag is set to true, the output
+// will be treated as a raw terminal and special handling of some control
+// characters will apply. This will also enable the extended terminal support.
+func Output(w io.Writer, isatty bool) Option {
+	return func(i *Instance) error {
+		i.tty = isatty
+		i.output = newWriter(w)
+		return nil
+	}
 }
 
 // Shrink enables or disables image shrinking when saving it.
@@ -149,6 +154,7 @@ type Instance struct {
 	data      []Cell
 	address   []Cell
 	ports     []Cell
+	insCount  int64
 	inH       map[int]IOCallback
 	outH      map[int]IOCallback
 	waitH     map[int]IOCallback
@@ -156,7 +162,7 @@ type Instance struct {
 	shrink    bool
 	input     io.RuneReader
 	output    runeWriter
-	insCount  int64
+	tty       bool
 }
 
 // New creates a new Ngaro Virtual Machine instance.
