@@ -64,10 +64,12 @@ func main() {
 	}
 
 	var rawtty bool
-	fn, err := setRawIO()
-	if err == nil {
-		rawtty = true
-		defer fn()
+	if *rawIO {
+		fn, e := setRawIO()
+		if e == nil {
+			rawtty = true
+			defer fn()
+		}
 	}
 
 	// buffer input if not raw tty
