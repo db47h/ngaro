@@ -175,3 +175,10 @@
       of your accepting any such warranty or additional liability.
 
    END OF TERMS AND CONDITIONS
+
+   This product bundles github.com/pkg/term by David Cheney, which is available
+   under a "2-clause BSD" license.  For details, see
+   https://raw.githubusercontent.com/pkg/term/master/LICENSE.
+   
+   This product bundles a Retro language image. For copyright and licensing
+   information, see LICENSE-RETRO.
