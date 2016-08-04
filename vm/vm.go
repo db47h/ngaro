@@ -16,6 +16,7 @@
 
 // Package vm implements the Ngaro VM.
 // TODO:
+//	- Propagate interactive flag to VM
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
 //	- add a disasm func

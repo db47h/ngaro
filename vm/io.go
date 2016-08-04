@@ -182,6 +182,9 @@ func (i *Instance) ioWait() error {
 			var size int
 			r, size, err = i.input.ReadRune()
 			if size > 0 {
+				if r == 4 { // CTRL-D
+					return io.EOF
+				}
 				i.out(Cell(r), 1)
 			} else {
 				i.out(utf8.RuneError, 1)
@@ -203,6 +206,12 @@ func (i *Instance) ioWait() error {
 			r := rune(i.Pop())
 			if i.output != nil {
 				_, err = i.output.WriteRune(r)
+				if r == 8 {
+					_, err = i.output.WriteRune(32)
+					if err == nil {
+						_, err = i.output.WriteRune(8)
+					}
+				}
 				if err != nil {
 					return errors.Wrap(err, "ioWait output")
 				}
