@@ -33,7 +33,7 @@ import (
 type Cell int32
 
 const (
-	portCount   = 64
+	portCount   = 1024
 	dataSize    = 1024
 	addressSize = 1024
 )

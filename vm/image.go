@@ -18,10 +18,9 @@ package vm
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 // Image encapsulates a VM's memory
@@ -32,16 +31,16 @@ type Image []Cell
 func Load(fileName string, minSize int) (Image, error) {
 	f, err := os.Open(fileName)
 	if err != nil {
-		return nil, errors.Wrap(err, "Load")
+		return nil, err
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return nil, errors.Wrap(err, "Load")
+		return nil, err
 	}
 	sz := st.Size()
 	if sz > int64((^uint(0))>>1) { // MaxInt
-		return nil, errors.Errorf("Load %v: file too large", fileName)
+		return nil, fmt.Errorf("Load %v: file too large", fileName)
 	}
 	var t Cell
 	sz /= int64(unsafe.Sizeof(t))
@@ -54,7 +53,7 @@ func Load(fileName string, minSize int) (Image, error) {
 	i := make(Image, sz)
 	err = binary.Read(f, binary.LittleEndian, i[:fileCells])
 	if err != nil {
-		return nil, errors.Wrap(err, "Load")
+		return nil, err
 	}
 	return i, nil
 }
@@ -64,14 +63,14 @@ func Load(fileName string, minSize int) (Image, error) {
 func (i Image) Save(fileName string, shrink bool) error {
 	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return errors.Wrap(err, "Save image")
+		return err
 	}
 	defer f.Close()
 
 	if shrink {
 		i = i[0:i[3]]
 	}
-	return errors.Wrap(binary.Write(f, binary.LittleEndian, i), "Save image")
+	return binary.Write(f, binary.LittleEndian, i)
 }
 
 // DecodeString returns the 0 terminated string starting at position pos in the image.

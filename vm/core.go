@@ -16,8 +16,6 @@
 
 package vm
 
-import "github.com/pkg/errors"
-
 // Opcode represents an Ngaro VM opcode.
 type Opcode Cell
 
@@ -99,7 +97,6 @@ func (i *Instance) Run() (err error) {
 			if err, ok = e.(error); !ok {
 				panic(e)
 			}
-			err = errors.Wrap(err, "VM abort")
 		}
 	}()
 	i.insCount = 0

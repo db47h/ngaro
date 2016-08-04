@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"github.com/db47h/ngaro/vm"
-	"github.com/pkg/errors"
 )
 
 var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
@@ -103,9 +102,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	err = proc.Run()
-	// filter out EOF
-	if e := errors.Cause(err); e == io.EOF {
+	if err = proc.Run(); err == io.EOF {
 		err = nil
 	}
 }

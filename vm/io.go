@@ -22,8 +22,6 @@ import (
 	"time"
 	"unicode/utf8"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 // readWriter wraps the WriteRune method. Works the same ad bufio.Writer.WriteRune.
@@ -188,7 +186,7 @@ func (i *Instance) ioWait() error {
 			} else {
 				i.out(utf8.RuneError, 1)
 				if err != nil {
-					return errors.Wrap(err, "ioWait input")
+					return err
 				}
 			}
 		case nil:
@@ -212,7 +210,7 @@ func (i *Instance) ioWait() error {
 					}
 				}
 				if err != nil {
-					return errors.Wrap(err, "ioWait output")
+					return err
 				}
 			}
 			i.out(0, 2)
@@ -247,7 +245,7 @@ func (i *Instance) ioWait() error {
 				var f *os.File
 				f, err = os.Open(i.Image.DecodeString(int(i.Pop())))
 				if err != nil {
-					return errors.Wrap(err, "Include failed")
+					return err
 				}
 				i.PushInput(f)
 			default:
