@@ -198,7 +198,7 @@ var fib = []vm.Opcode{
 	vm.OpLit, 0,
 	vm.OpLit, 1,
 	vm.OpPop,
-	vm.OpJump, 15,
+	vm.OpJump, 15, // junp to loop
 	vm.OpPush, // save count
 	vm.OpDup,
 	vm.OpPush, // save n-1
@@ -206,12 +206,38 @@ var fib = []vm.Opcode{
 	vm.OpPop,
 	vm.OpSwap, // stack: n-2 n-1
 	vm.OpPop,
-	vm.OpLoop, 8,
+	vm.OpLoop, 8, // loop
 	vm.OpSwap,
 	vm.OpDrop,
 }
 
-func Test_Fib(t *testing.T) {
+var nFib = []vm.Opcode{
+	vm.OpJump, 32,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	44, // call
+	vm.OpLit, -9,
+	vm.OpLit, 5,
+	vm.OpOut,
+	vm.OpLit, 0,
+	vm.OpLit, 0,
+	vm.OpOut,
+	vm.OpWait,
+	// entry
+	vm.OpDup,
+	vm.OpLit, 1,
+	vm.OpGtJump, 50,
+	vm.OpReturn,
+	vm.OpDec,
+	vm.OpDup,
+	44,
+	vm.OpSwap,
+	vm.OpDec,
+	44,
+	vm.OpAdd,
+	vm.OpReturn,
+}
+
+func Test_Fib_AsmLoop(t *testing.T) {
 	f := make(C, len(fib))
 	for i := range fib {
 		f[i] = vm.Cell(fib[i])
@@ -220,7 +246,16 @@ func Test_Fib(t *testing.T) {
 	check(t, p, 0, C{832040}, nil)
 }
 
-func Test_Fib2(t *testing.T) {
+func Test_Fib_AsmRecursive(t *testing.T) {
+	f := make(C, len(nFib))
+	for i := range nFib {
+		f[i] = vm.Cell(nFib[i])
+	}
+	p := setup(f, C{30}, nil)
+	check(t, p, 0, C{832040}, nil)
+}
+
+func Test_Fib_RetroLoop(t *testing.T) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
 	img, _ := vm.Load(imageFile, 50000)
 	i, _ := vm.New(img, imageFile,
@@ -232,21 +267,48 @@ func Test_Fib2(t *testing.T) {
 	check(t, i, 0, C{832040}, nil)
 }
 
-func Benchmark_Fib(b *testing.B) {
+func Benchmark_Fib_AsmLoop(b *testing.B) {
 	f := make(C, len(fib))
 	for i := range fib {
 		f[i] = vm.Cell(fib[i])
 	}
+	i := setup(f, C{35}, nil)
+	for c := 0; c < b.N; c++ {
+		i.PC = 0
+		i.Run(len(i.Image))
+		i.Pop()
+		i.Push(35)
+	}
+}
+
+func Benchmark_Fib_AsmRecursive(b *testing.B) {
+	f := make(C, len(nFib))
+	for i := range nFib {
+		f[i] = vm.Cell(nFib[i])
+	}
+	i := setup(f, C{35}, nil)
+	for c := 0; c < b.N; c++ {
+		i.PC = 0
+		i.Run(len(i.Image))
+		i.Pop()
+		i.Push(35)
+	}
+}
+
+func Benchmark_Fib_RetroLoop(b *testing.B) {
+	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		i := setup(f, C{46}, nil)
+		img, _ := vm.Load(imageFile, 50000)
+		i, _ := vm.New(img, imageFile,
+			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
 		i.Run(len(i.Image))
 	}
 }
 
-func Benchmark_Fib2(b *testing.B) {
-	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
+func Benchmark_Fib_RetroRecursive(b *testing.B) {
+	fib := ": fib dup 2 < if; 1- dup fib swap 1- fib + ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
 		img, _ := vm.Load(imageFile, 50000)
