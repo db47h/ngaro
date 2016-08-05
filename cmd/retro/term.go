@@ -14,12 +14,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//+build !linux
+//+build !windows
 
 package main
 
-// setRawIO() attempts to set stdin to raw IO and returns a function
-// to restore IO settings as they were before
+import (
+	"syscall"
+
+	"github.com/pkg/term/termios"
+)
+
+// switch terminal to raw IO. we do not use the higher level functions
+// of the term package because it doesn't allow the use of existing file
+// descriptors, nor does it allow custom termios settings.
 func setRawIO() (func(), error) {
-	return nil, nil
+	var tios syscall.Termios
+	err := termios.Tcgetattr(0, &tios)
+	if err != nil {
+		return nil, err
+	}
+	a := tios
+	a.Iflag &^= syscall.BRKINT | syscall.ISTRIP | syscall.IXON | syscall.IXOFF
+	a.Iflag |= syscall.IGNBRK | syscall.IGNPAR
+	a.Lflag &^= syscall.ICANON | syscall.ISIG | syscall.IEXTEN | syscall.ECHO
+	a.Cc[syscall.VMIN] = 1
+	a.Cc[syscall.VTIME] = 0
+	err = termios.Tcsetattr(0, termios.TCSANOW, &a)
+	if err != nil {
+		// well, try to restore as it was if it errors
+		termios.Tcsetattr(0, termios.TCSANOW, &tios)
+		return nil, err
+	}
+	return func() {
+		termios.Tcsetattr(0, termios.TCSANOW, &tios)
+	}, nil
 }

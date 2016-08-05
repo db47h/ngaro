@@ -16,32 +16,10 @@
 
 package main
 
-import (
-	"syscall"
+import "errors"
 
-	"github.com/pkg/term/termios"
-)
-
-// switch terminal to raw IO.
+// setRawIO() attempts to set stdin to raw IO and returns a function
+// to restore IO settings as they were before
 func setRawIO() (func(), error) {
-	var tios syscall.Termios
-	err := termios.Tcgetattr(0, &tios)
-	if err != nil {
-		return nil, err
-	}
-	a := tios
-	a.Iflag &^= syscall.BRKINT | syscall.ISTRIP | syscall.IXON | syscall.IXOFF
-	a.Iflag |= syscall.IGNBRK | syscall.IGNPAR
-	a.Lflag &^= syscall.ICANON | syscall.ISIG | syscall.IEXTEN | syscall.ECHO
-	a.Cc[syscall.VMIN] = 1
-	a.Cc[syscall.VTIME] = 0
-	err = termios.Tcsetattr(0, termios.TCSANOW, &a)
-	if err != nil {
-		// well, try to restore as it was if it errors
-		termios.Tcsetattr(0, termios.TCSANOW, &tios)
-		return nil, err
-	}
-	return func() {
-		termios.Tcsetattr(0, termios.TCSANOW, &tios)
-	}, nil
+	return nil, errors.New("raw IO not supported")
 }
