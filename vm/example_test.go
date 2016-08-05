@@ -252,3 +252,52 @@ func ExampleBindWaitHandler_async() {
 	// Output:
 	// [1836311903]
 }
+
+// Disassemble is pretty straightforward. Here we Disassemble a hand crafted
+// fibonacci function.
+func ExampleImage_Disassemble() {
+	var fib vm.Image = []vm.Cell{
+		vm.OpPush,
+		vm.OpLit, 0,
+		vm.OpLit, 1,
+		vm.OpPop,
+		vm.OpJump, 15, // junp to loop
+		vm.OpPush, // save count
+		vm.OpDup,
+		vm.OpPush, // save n-1
+		vm.OpAdd,  // n-2 + n-1
+		vm.OpPop,
+		vm.OpSwap, // stack: n-2 n-1
+		vm.OpPop,
+		vm.OpLoop, 8, // loop
+		vm.OpSwap,
+		vm.OpDrop,
+		vm.OpReturn,
+		vm.OpLit, // Error: unterminated LIT at the end of imah
+	}
+
+	for i := 0; i < len(fib); {
+		var d string
+		i, d = fib.Disassemble(i)
+		fmt.Println(d)
+	}
+
+	// Output:
+	// Push
+	// Lit	0
+	// Lit	1
+	// Pop
+	// Jump	15
+	// Push
+	// Dup
+	// Push
+	// Add
+	// Pop
+	// Swap
+	// Pop
+	// Loop	8
+	// Swap
+	// Drop
+	// Return
+	// Lit	???
+}

@@ -33,12 +33,24 @@
 // handlers. Should you find that the VM does not behave according to the spec,
 // please file a bug report.
 //
+// There's a caveat common to all Ngaro implementations: use of IN, OUT and WAIT
+// from the listener (the Retro interactive prompt) will not work as expected.
+// This is because the listener uses the same mechanism to read user input and
+// write to the terminal and will clear port 0 before you get a chance to
+// read/clear response values. This is of particular importance for users of
+// custom IO handlers. To work around this issue, a synchronous OUT-WAIT-IN IO
+// sequence must be compiled in a word, so that it will run without interference
+// from the listener. for example, to read VM capabilities, you can do this:
+//
+//	( cap sends value on the stack to port 5, does a wait and puts response back on the stack )
+//	: cap ( n-n ) 5 out 0 0 out wait 5 in ;
+//	-1 cap putn
+//
+// should give you the size of the image.
+//
 // TODO:
 //	- complete file i/o
 //	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
-//	- add a disassembly function.
 //	- go routines in cmd/retro
-//	- Caveat that needs documentation: I/O trashes ports in interactive mode. For example, the following returns 0 instead of the image size:
-//		-1 5 out 0 0 out wait 5 in putn
-//
+//	- implement stats and debug image dump
 package vm

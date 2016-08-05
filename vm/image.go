@@ -17,9 +17,11 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strconv"
 	"unsafe"
 )
 
@@ -83,4 +85,23 @@ func (i Image) DecodeString(pos int) string {
 		str[idx] = rune(c)
 	}
 	return string(str)
+}
+
+// Disassemble disassembles the cells at position pc and returns the position of
+// the next valid opcode and the disassembly string.
+func (i Image) Disassemble(pc int) (next int, disasm string) {
+	var d bytes.Buffer
+	op := i[pc]
+	d.WriteString(op.disasm())
+	pc++
+	switch op {
+	case OpLit, OpLoop, OpJump, OpGtJump, OpLtJump, OpNeJump, OpEqJump:
+		if pc < len(i) {
+			d.WriteByte('\t')
+			d.WriteString(strconv.Itoa(int(i[pc])))
+			return pc + 1, d.String()
+		}
+		d.WriteString("\t???")
+	}
+	return pc, d.String()
 }
