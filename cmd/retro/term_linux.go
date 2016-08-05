@@ -17,16 +17,13 @@
 package main
 
 import (
-	"errors"
 	"syscall"
 
 	"github.com/pkg/term/termios"
 )
 
+// switch terminal to raw IO.
 func setRawIO() (func(), error) {
-	if !*rawIO {
-		return nil, errors.New("RawIO Disabled")
-	}
 	var tios syscall.Termios
 	err := termios.Tcgetattr(0, &tios)
 	if err != nil {
