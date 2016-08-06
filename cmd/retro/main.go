@@ -45,7 +45,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "\n%v\n", err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "\n%+#v\n", err)
+		fmt.Fprintf(os.Stderr, "\n%+v\n", err)
 		if proc != nil {
 			if proc.PC < len(proc.Image) {
 				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())

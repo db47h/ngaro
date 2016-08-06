@@ -16,6 +16,8 @@
 
 package vm
 
+import "github.com/pkg/errors"
+
 // Ngaro Virtual Machine Opcodes.
 const (
 	OpNop Cell = iota
@@ -88,6 +90,16 @@ func (i *Instance) Rpop() Cell {
 // If the last input stream gets closed, the VM will exit and return io.EOF.
 // This is a normal exit condition in most use cases.
 func (i *Instance) Run() (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			switch e := e.(type) {
+			case error:
+				err = errors.Wrap(e, "Recovered error")
+			default:
+				panic(e)
+			}
+		}
+	}()
 	i.insCount = 0
 	for i.PC < len(i.Image) {
 		op := i.Image[i.PC]
