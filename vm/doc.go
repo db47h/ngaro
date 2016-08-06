@@ -39,14 +39,26 @@
 // write to the terminal and will clear port 0 before you get a chance to
 // read/clear response values. This is of particular importance for users of
 // custom IO handlers. To work around this issue, a synchronous OUT-WAIT-IN IO
-// sequence must be compiled in a word, so that it will run without interference
-// from the listener. for example, to read VM capabilities, you can do this:
+// sequence must be compiled in a word, so that it will run atomically, without
+// interference from the listener. For example, to read VM capabilities, you can
+// do this:
 //
-//	( cap sends value on the stack to port 5, does a wait and puts response back on the stack )
-//	: cap ( n-n ) 5 out 0 0 out wait 5 in ;
-//	-1 cap putn
+//	( io sends value n to port p, does a wait and puts response back on the stack )
+//	: io ( np-n ) dup push out 0 0 out wait pop in ;
+//
+//	-1 5 io putn
 //
 // should give you the size of the image.
+//
+// Since characters are stored one per 32 bits Cell in Retro, the VM supports
+// unicode I/O. If the io.Reader and io.Writer provided as input implement the
+// ReadRune and WriteRune methods respectively, these methods will be used for
+// I/O.
+//
+// Regarding I/O, reading console width and height will only work if the
+// io.Writer set as output with vm.Output implements the Fd method. So this will
+// only work if the output is os.Stdout or a pty (and NOT wrapped in a
+// bufio.Writer).
 //
 // TODO:
 //	- complete file i/o

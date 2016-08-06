@@ -75,8 +75,11 @@ func (i Image) Save(fileName string, shrink bool) error {
 	return binary.Write(f, binary.LittleEndian, i)
 }
 
-// DecodeString returns the 0 terminated string starting at position pos in the image.
-func (i Image) DecodeString(pos int) string {
+// DecodeString returns the string starting at position start in the image.
+// Strings stored in the image must be zero terminated. The trailing '\0' is
+// not returned.
+func (i Image) DecodeString(start Cell) string {
+	pos := int(start)
 	end := pos
 	for ; end < len(i) && i[end] != 0; end++ {
 	}
@@ -85,6 +88,17 @@ func (i Image) DecodeString(pos int) string {
 		str[idx] = rune(c)
 	}
 	return string(str)
+}
+
+// EncodeString writes the given string at postion start in the Image and
+// terminates it with a '\0' Cell.
+func (i Image) EncodeString(start Cell, s string) {
+	pos := int(start)
+	for _, r := range s {
+		i[pos] = Cell(r)
+		pos++
+	}
+	i[pos] = 0
 }
 
 // Disassemble disassembles the cells at position pc and returns the position of
