@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -63,7 +64,7 @@ func (i *Instance) WaitReply(v, port Cell) {
 	i.Ports[0] = 1
 }
 
-// Wait is the default WAIT handler bound to ports 1, 2, 4 and 5. It can be
+// Wait is the default WAIT handler bound to ports 1, 2, 4, 5 and 8. It can be
 // called manually by custom handlers that override default behaviour.
 func (i *Instance) Wait(v, port Cell) error {
 	if v == 0 {
@@ -170,7 +171,9 @@ func (i *Instance) Wait(v, port Cell) error {
 			case -13:
 				i.Ports[5] = Cell(unsafe.Sizeof(Cell(0)) * 8)
 			// -14: endianness
-			// -15: port 8 enabled
+			case -15:
+				// port 8 enabled
+				i.Ports[5] = -1
 			case -16:
 				i.Ports[5] = Cell(len(i.data))
 			case -17:
@@ -179,6 +182,19 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.Ports[5] = 0
 			}
 			i.Ports[0] = 1
+		}
+	case 8:
+		if v := i.Ports[8]; v != 0 {
+			switch i.Ports[8] {
+			case 1:
+				fmt.Fprintf(i.output, "\x1B[%d;%dH", i.data[i.sp-1], i.data[i.sp])
+				i.sp -= 2
+			case 2:
+				fmt.Fprintf(i.output, "\x1B[3%dm", i.Pop())
+			case 3:
+				fmt.Fprintf(i.output, "\x1B[4%dm", i.Pop())
+			}
+			i.WaitReply(0, 8)
 		}
 	}
 	return nil

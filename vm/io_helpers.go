@@ -29,6 +29,7 @@ type fder interface {
 
 // readWriter wraps the WriteRune method. Works the same ad bufio.Writer.WriteRune.
 type runeWriter interface {
+	io.Writer
 	WriteRune(r rune) (size int, err error)
 }
 

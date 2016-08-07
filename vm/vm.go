@@ -182,7 +182,7 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 	}
 
 	// default Wait Handlers
-	for _, p := range []Cell{1, 2, 4, 5} {
+	for _, p := range []Cell{1, 2, 4, 5, 8} {
 		i.waitH[p] = i.Wait
 	}
 
