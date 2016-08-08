@@ -94,11 +94,14 @@ func (i *Instance) Wait(v, port Cell) error {
 		if v == 1 {
 			r := rune(i.Pop())
 			if i.output != nil {
-				_, err := i.output.WriteRune(r)
-				if i.tty && r == 8 { // backspace, erase last char
-					_, err = i.output.WriteRune(32)
-					if err == nil {
-						_, err = i.output.WriteRune(8)
+				var err error
+				if r < 0 && i.tty {
+					_, err = io.WriteString(i.output, "\033[2J\033[1;1H")
+				} else {
+					_, err = i.output.WriteRune(r)
+					// Erase last char if backspace
+					if r == 8 && err == nil && i.tty {
+						_, err = i.output.Write([]byte{32, 8})
 					}
 				}
 				if err != nil {
@@ -187,12 +190,12 @@ func (i *Instance) Wait(v, port Cell) error {
 		if v := i.Ports[8]; v != 0 {
 			switch i.Ports[8] {
 			case 1:
-				fmt.Fprintf(i.output, "\x1B[%d;%dH", i.data[i.sp-1], i.data[i.sp])
+				fmt.Fprintf(i.output, "\033[%d;%dH", i.data[i.sp-1], i.data[i.sp])
 				i.sp -= 2
 			case 2:
-				fmt.Fprintf(i.output, "\x1B[3%dm", i.Pop())
+				fmt.Fprintf(i.output, "\033[3%dm", i.Pop())
 			case 3:
-				fmt.Fprintf(i.output, "\x1B[4%dm", i.Pop())
+				fmt.Fprintf(i.output, "\033[4%dm", i.Pop())
 			}
 			i.WaitReply(0, 8)
 		}
