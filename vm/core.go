@@ -249,11 +249,12 @@ func (i *Instance) Run() (err error) {
 			v, port := i.data[i.sp-1], i.data[i.sp]
 			i.sp -= 2
 			if h := i.outH[port]; h != nil {
-				if err = h(i, v, port); err != nil {
-					return err
-				}
+				err = h(i, v, port)
 			} else {
-				i.Out(v, port)
+				err = i.Out(v, port)
+			}
+			if err != nil {
+				return err
 			}
 			i.PC++
 		case OpWait:

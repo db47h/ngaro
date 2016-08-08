@@ -72,9 +72,11 @@ func (i *Instance) In(port Cell) error {
 
 // Out is the default OUT handler for all ports.
 func (i *Instance) Out(v, port Cell) error {
-	if port == 3 && i.output != nil {
-		i.output.Flush()
-		return nil
+	if port == 3 {
+		if i.output == nil {
+			return nil
+		}
+		return i.output.Flush()
 	}
 	i.Ports[port] = v
 	return nil
