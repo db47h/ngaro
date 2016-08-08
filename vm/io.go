@@ -24,7 +24,9 @@ import (
 	"unsafe"
 )
 
-// Terminal encapsulates methods provided by a terminal output.
+// Terminal encapsulates methods provided by a terminal output. Apart from
+// WriteRune, all methods can be implemented as no-ops if the underlying output
+// does not support the corresponding functionality.
 //
 // WriteRune writes a single Unicode code point, returning the number of bytes written and any error.
 //
@@ -35,17 +37,20 @@ import (
 //
 // Clear clears the terminal window and moves the cursor to the top left.
 //
-// CursorPos moves the cursor at he given position.
+// MoveCursor moves the cursor to the specified column and row.
 //
 // FgColor and BgColor respectively set the foreground and background color of
 // all characters subsequently written.
+//
+// Port8Enabled should return true if the MoveCursor, FgColor and BgColor
+// methods have any effect.
 type Terminal interface {
 	io.Writer
 	WriteRune(r rune) (size int, err error)
 	Flush() error
 	Size() (width int, height int)
 	Clear()
-	CursorPos(x, y int)
+	MoveCursor(x, y int)
 	FgColor(fg int)
 	BgColor(bg int)
 	Port8Enabled() bool
@@ -214,7 +219,7 @@ func (i *Instance) Wait(v, port Cell) error {
 		if v := i.Ports[8]; v != 0 && i.output != nil {
 			switch i.Ports[8] {
 			case 1:
-				i.output.CursorPos(int(i.data[i.sp-1]), int(i.data[i.sp]))
+				i.output.MoveCursor(int(i.data[i.sp]), int(i.data[i.sp-1]))
 				i.sp -= 2
 			case 2:
 				i.output.FgColor(int(i.Pop()))

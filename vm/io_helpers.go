@@ -17,8 +17,9 @@
 package vm
 
 import (
-	"fmt"
+	"bytes"
 	"io"
+	"strconv"
 	"unicode/utf8"
 )
 
@@ -80,6 +81,7 @@ func (r *runeReaderWrapper) ReadRune() (ret rune, size int, err error) {
 	return ret, size, err
 }
 
+// Close forwards to the wrapped reader if it implements it.
 func (r *runeReaderWrapper) Close() error {
 	if c, ok := r.Reader.(io.Closer); ok {
 		return c.Close()
@@ -142,18 +144,34 @@ func (t *vt100Terminal) Size() (width int, height int) {
 	}
 	return t.size()
 }
-func (t *vt100Terminal) Clear()             { io.WriteString(t.runeWriter, "\033[2J\033[1;1H") }
-func (t *vt100Terminal) CursorPos(x, y int) { fmt.Fprintf(t.runeWriter, "\033[%d;%dH", x, y) }
-func (t *vt100Terminal) FgColor(fg int)     { fmt.Fprintf(t.runeWriter, "\033[3%dm", fg) }
-func (t *vt100Terminal) BgColor(bg int)     { fmt.Fprintf(t.runeWriter, "\033[4%dm", bg) }
+func (t *vt100Terminal) Clear() {
+	t.runeWriter.Write([]byte{'\033', '[', '2', 'J', '\033', '[', '1', ';', '1', 'H'})
+}
+func (t *vt100Terminal) MoveCursor(row, col int) {
+	var b bytes.Buffer
+	b.Write([]byte{'\033', '['})
+	b.Write([]byte(strconv.Itoa(row)))
+	b.Write([]byte{';'})
+	b.Write([]byte(strconv.Itoa(col)))
+	_, err := b.Write([]byte{'H'})
+	if err == nil {
+		io.Copy(t.runeWriter, &b)
+	}
+}
+func (t *vt100Terminal) FgColor(fg int) {
+	t.runeWriter.Write([]byte{'\033', '[', '3', '0' + byte(fg), 'm'})
+}
+func (t *vt100Terminal) BgColor(bg int) {
+	t.runeWriter.Write([]byte{'\033', '[', '4', '0' + byte(bg), 'm'})
+}
 func (t *vt100Terminal) Port8Enabled() bool { return true }
 
 // NewVT100Terminal returns a new Terminal implementation that uses VT100 escape
 // sequences to implement the Clear, CusrosrPos, FgColor and BgColor methods.
 //
-// The caller only needs to provide the functions implementing Flush and
-// Size. These functions may be nil, in which case they will be implemented as
-// no-ops.
+// The caller only needs to provide the functions implementing Flush and Size.
+// Either of these functions may be nil, in which case they will be implemented
+// as no-ops.
 func NewVT100Terminal(w io.Writer, flush func() error, size func() (width int, height int)) Terminal {
 	return &vt100Terminal{newWriter(w), flush, size}
 }
