@@ -27,6 +27,25 @@ const (
 	addressSize = 1024
 )
 
+// Instance represents an Ngaro VM instance.
+type Instance struct {
+	PC        int    // Program Counter (aka. Instruction Pointer)
+	Image     Image  // Memory image
+	Ports     []Cell // I/O ports
+	sp        int
+	rsp       int
+	data      []Cell
+	address   []Cell
+	insCount  int64
+	inH       map[Cell]InHandler
+	outH      map[Cell]OutHandler
+	waitH     map[Cell]WaitHandler
+	imageFile string
+	shrink    bool
+	input     io.RuneReader
+	output    Terminal
+}
+
 // Option interface
 type Option func(*Instance) error
 
@@ -63,20 +82,10 @@ func Input(r io.Reader) Option {
 	return func(i *Instance) error { i.PushInput(r); return nil }
 }
 
-// Output configures the output Writer.
-//
-// If non-nil, the flush function should write any buffered output data to the
-// underlying Writer.
-//
-// If non-nil, the consoleSize function should return the width and height of the
-// console window.
-//
-// If the rawtty flag is set to true, the output will be treated as a raw
-// terminal and special handling of some control characters will apply
-// (backspace and CTRL-D).
-func Output(w io.Writer, flush func() error, consoleSize func() (int, int), rawtty bool) Option {
+// Output configures the output TerminalWriter.
+func Output(t Terminal) Option {
 	return func(i *Instance) error {
-		i.output = &output{newWriter(w), flush, consoleSize, rawtty}
+		i.output = t
 		return nil
 	}
 }
@@ -87,8 +96,14 @@ func Shrink(shrink bool) Option {
 	return func(i *Instance) error { i.shrink = shrink; return nil }
 }
 
-// IOHandler is the function prototype for custom IN/OUT/WAIT handlers.
-type IOHandler func(v, port Cell) error
+// InHandler is the function prototype for custom IN handlers.
+type InHandler func(port Cell) error
+
+// OutHandler is the function prototype for custom OUT handlers.
+type OutHandler func(v, port Cell) error
+
+// WaitHandler is the function prototype for custom WAIT handlers.
+type WaitHandler func(v, port Cell) error
 
 // BindInHandler binds the porvided IN handler to the given port.
 //
@@ -98,7 +113,7 @@ type IOHandler func(v, port Cell) error
 //
 // Custom hamdlers do not strictly need to interract with Ports field. It is
 // however recommended that they behave the same as the default.
-func BindInHandler(port Cell, handler IOHandler) Option {
+func BindInHandler(port Cell, handler InHandler) Option {
 	return func(i *Instance) error {
 		i.inH[port] = handler
 		return nil
@@ -111,7 +126,7 @@ func BindInHandler(port Cell, handler IOHandler) Option {
 // A common use of OutHandler when using buffered I/O is to flush the output
 // writer when anything is written to port 3. Such handler just ignores the
 // written value, leaving Ports[3] as is.
-func BindOutHandler(port Cell, handler IOHandler) Option {
+func BindOutHandler(port Cell, handler OutHandler) Option {
 	return func(i *Instance) error {
 		i.outH[port] = handler
 		return nil
@@ -128,7 +143,7 @@ func BindOutHandler(port Cell, handler IOHandler) Option {
 //
 // Upon completion, a WAIT handler should call the WaitReply method which will
 // set the value of the bound port and set the value of port 0 to 1.
-func BindWaitHandler(port Cell, handler IOHandler) Option {
+func BindWaitHandler(port Cell, handler WaitHandler) Option {
 	return func(i *Instance) error {
 		i.waitH[port] = handler
 		return nil
@@ -143,25 +158,6 @@ func (i *Instance) SetOptions(opts ...Option) error {
 		}
 	}
 	return nil
-}
-
-// Instance represents an Ngaro VM instance.
-type Instance struct {
-	PC        int    // Program Counter (aka. Instruction Pointer)
-	Image     Image  // Memory image
-	Ports     []Cell // I/O ports
-	sp        int
-	rsp       int
-	data      []Cell
-	address   []Cell
-	insCount  int64
-	inH       map[Cell]IOHandler
-	outH      map[Cell]IOHandler
-	waitH     map[Cell]IOHandler
-	imageFile string
-	shrink    bool
-	input     io.RuneReader
-	output    *output
 }
 
 // New creates a new Ngaro Virtual Machine instance.
@@ -181,9 +177,9 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		rsp:       -1,
 		Image:     image,
 		Ports:     make([]Cell, portCount),
-		inH:       make(map[Cell]IOHandler),
-		outH:      make(map[Cell]IOHandler),
-		waitH:     make(map[Cell]IOHandler),
+		inH:       make(map[Cell]InHandler),
+		outH:      make(map[Cell]OutHandler),
+		waitH:     make(map[Cell]WaitHandler),
 		imageFile: imageFile,
 	}
 

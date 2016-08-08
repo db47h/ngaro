@@ -53,6 +53,16 @@ const (
 	OpWait
 )
 
+// Tos returns the top stack item.
+func (i *Instance) Tos() Cell {
+	return i.data[i.sp]
+}
+
+// Drop removes the top item from the data stack.
+func (i *Instance) Drop(v Cell) {
+	i.sp--
+}
+
 // Push pushes the argument on top of the data stack.
 func (i *Instance) Push(v Cell) {
 	i.sp++
@@ -226,11 +236,12 @@ func (i *Instance) Run() (err error) {
 			port := i.data[i.sp]
 			if h := i.inH[port]; h != nil {
 				i.sp--
-				if err = h(i.Ports[port], port); err != nil {
+				if err = h(port); err != nil {
 					return err
 				}
 			} else {
 				// we're not calling i.In so that we can optimize out a Pop/Push
+				// sequence
 				i.data[i.sp], i.Ports[port] = i.Ports[port], 0
 			}
 			i.PC++

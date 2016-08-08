@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -25,12 +24,29 @@ import (
 	"unsafe"
 )
 
-// output wraps the output device and maps some of its capabilities
-type output struct {
-	runeWriter
-	flush       func() error
-	consoleSize func() (with int, height int)
-	rawtty      bool
+// Terminal encapsulates methods provided by a terminal output.
+//
+// WriteRune writes a single Unicode code point, returning the number of bytes written and any error.
+//
+// Flush writes any buffered unwritten output.
+//
+// Size returns the width and height of the terminal window.
+//
+// Clear clears the terminal window.
+//
+// CursorPos moves the cursor at he given position.
+//
+// FgColor and BgColor respectively set the foreground and background color.
+type Terminal interface {
+	io.Writer
+	WriteRune(r rune) (size int, err error)
+	Flush() error
+	Size() (width int, height int)
+	Clear()
+	CursorPos(x, y int)
+	FgColor(fg int)
+	BgColor(bg int)
+	Port8Enabled() bool
 }
 
 // PushInput sets r as the current input RuneReader for the VM. When this reader
@@ -56,8 +72,8 @@ func (i *Instance) In(port Cell) error {
 
 // Out is the default OUT handler for all ports.
 func (i *Instance) Out(v, port Cell) error {
-	if port == 3 && i.output != nil && i.output.flush != nil {
-		i.output.flush()
+	if port == 3 && i.output != nil {
+		i.output.Flush()
 		return nil
 	}
 	i.Ports[port] = v
@@ -86,9 +102,6 @@ func (i *Instance) Wait(v, port Cell) error {
 			}
 			r, size, err := i.input.ReadRune()
 			if size > 0 {
-				if i.output != nil && i.output.rawtty && r == 4 { // CTRL-D
-					return io.EOF
-				}
 				i.WaitReply(Cell(r), 1)
 			} else {
 				i.WaitReply(utf8.RuneError, 1)
@@ -103,13 +116,9 @@ func (i *Instance) Wait(v, port Cell) error {
 			if i.output != nil {
 				var err error
 				if r < 0 {
-					_, err = io.WriteString(i.output, "\033[2J\033[1;1H")
+					i.output.Clear()
 				} else {
 					_, err = i.output.WriteRune(r)
-					// Erase last char if backspace
-					if r == 8 && err == nil && i.output.rawtty {
-						_, err = i.output.Write([]byte{32, 8})
-					}
 				}
 				if err != nil {
 					return err
@@ -164,16 +173,16 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.Ports[5] = 0
 			case -11:
 				// console width
-				if i.output != nil && i.output.consoleSize != nil {
-					w, _ := i.output.consoleSize()
+				if i.output != nil {
+					w, _ := i.output.Size()
 					i.Ports[5] = Cell(w)
 				} else {
 					i.Ports[5] = 0
 				}
 			case -12:
 				// console height
-				if i.output != nil && i.output.consoleSize != nil {
-					_, h := i.output.consoleSize()
+				if i.output != nil {
+					_, h := i.output.Size()
 					i.Ports[5] = Cell(h)
 				} else {
 					i.Ports[5] = 0
@@ -183,7 +192,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			// -14: endianness
 			case -15:
 				// port 8 enabled
-				if i.output != nil {
+				if i.output != nil && i.output.Port8Enabled() {
 					i.Ports[5] = -1
 				} else {
 					i.Ports[5] = 0
@@ -201,12 +210,12 @@ func (i *Instance) Wait(v, port Cell) error {
 		if v := i.Ports[8]; v != 0 && i.output != nil {
 			switch i.Ports[8] {
 			case 1:
-				fmt.Fprintf(i.output, "\033[%d;%dH", i.data[i.sp-1], i.data[i.sp])
+				i.output.CursorPos(int(i.data[i.sp-1]), int(i.data[i.sp]))
 				i.sp -= 2
 			case 2:
-				fmt.Fprintf(i.output, "\033[3%dm", i.Pop())
+				i.output.FgColor(int(i.Pop()))
 			case 3:
-				fmt.Fprintf(i.output, "\033[4%dm", i.Pop())
+				i.output.BgColor(int(i.Pop()))
 			}
 			i.WaitReply(0, 8)
 		}

@@ -58,11 +58,7 @@ func main() {
 
 	flag.Parse()
 
-	// default options
-	var opts = []vm.Option{
-		vm.Shrink(*shrink),
-	}
-
+	// try to switch the output terminal to raw mode.
 	var rawtty bool
 	if *rawIO {
 		fn, e := setRawIO()
@@ -72,14 +68,51 @@ func main() {
 		}
 	}
 
-	// buffer input if not raw tty
+	output := bufio.NewWriter(os.Stdout)
+	outTerm := vm.NewVT100Terminal(output, output.Flush, consoleSize(os.Stdout))
+
+	// default options
+	var opts = []vm.Option{
+		vm.Shrink(*shrink),
+		vm.Output(outTerm),
+	}
+
 	if rawtty {
-		opts = append(opts, vm.Input(os.Stdin), vm.Output(os.Stdout, nil, consoleSize(os.Stdout), true))
-	} else {
-		output := bufio.NewWriter(os.Stdout)
+		// with the terminal in raw mode, we need to manually handle CTRL-D and
+		// backspace, so we'll intercept WAITs on ports 1 and 2.
+		// we could also do it with wrappers around Stdin/Stdout
 		opts = append(opts,
-			vm.Input(bufio.NewReader(os.Stdin)),
-			vm.Output(output, output.Flush, consoleSize(os.Stdout), false))
+			vm.Input(os.Stdin),
+			vm.BindWaitHandler(1, func(v, port vm.Cell) error {
+				if v != 1 {
+					return proc.Wait(v, port)
+				}
+				// if v == 1, this will always read something
+				e := proc.Wait(v, port)
+				if e == nil && proc.Ports[1] == 4 {
+					// CTRL-D
+					return io.EOF
+				}
+				return e
+
+			}),
+			vm.BindWaitHandler(2, func(v, port vm.Cell) error {
+				var e error
+				if v != 1 {
+					return proc.Wait(v, port)
+				}
+				t := proc.Tos() // save TOS
+				e = proc.Wait(v, port)
+				if e == nil && t == 8 {
+					// th vm has written a backspace, erase char under cursor
+					_, e = outTerm.Write([]byte{32, 8})
+				}
+				return e
+			}))
+	} else {
+		// If not raw tty, buffer stdin, but do not check further if the i/o is
+		// a terminal or not. The standard VT100 behavior is sufficient here.
+		opts = append(opts, vm.Input(bufio.NewReader(os.Stdin)))
 	}
 
 	// append withFile to the input stack

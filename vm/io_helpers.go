@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"io"
 	"unicode/utf8"
 )
@@ -121,4 +122,37 @@ func (mr *multiRuneReader) ReadRune() (r rune, size int, err error) {
 
 func (mr *multiRuneReader) pushReader(r io.Reader) {
 	mr.readers = append([]io.RuneReader{newRuneReader(r)}, mr.readers...)
+}
+
+type vt100Terminal struct {
+	runeWriter
+	flush func() error
+	size  func() (int, int)
+}
+
+func (t *vt100Terminal) Flush() error {
+	if t.flush == nil {
+		return nil
+	}
+	return t.flush()
+}
+func (t *vt100Terminal) Size() (width int, height int) {
+	if t.size == nil {
+		return 0, 0
+	}
+	return t.size()
+}
+func (t *vt100Terminal) Clear()             { io.WriteString(t.runeWriter, "\033[2J\033[1;1H") }
+func (t *vt100Terminal) CursorPos(x, y int) { fmt.Fprintf(t.runeWriter, "\033[%d;%dH", x, y) }
+func (t *vt100Terminal) FgColor(fg int)     { fmt.Fprintf(t.runeWriter, "\033[3%dm", fg) }
+func (t *vt100Terminal) BgColor(bg int)     { fmt.Fprintf(t.runeWriter, "\033[4%dm", bg) }
+func (t *vt100Terminal) Port8Enabled() bool { return true }
+
+// NewVT100Terminal returns a new Terminal implementation that uses VT100 escape
+// sequences to implement the Clear, CusrosrPos, FgColor and BgColor methods.
+//
+// The caller only needs the Flush and size functions. These functions may be
+// nil, in which case they will be implemented as no-ops.
+func NewVT100Terminal(w io.Writer, flush func() error, consoleSize func() (width int, height int)) Terminal {
+	return &vt100Terminal{newWriter(w), flush, consoleSize}
 }

@@ -42,7 +42,7 @@ func ExampleInstance_Run() {
 	i, err := vm.New(img, imageFile,
 		vm.Input(os.Stdin),
 		vm.Input(strings.NewReader("\"testdata/core.rx\" :include\n")),
-		vm.Output(output, nil, nil, false))
+		vm.Output(vm.NewVT100Terminal(output, nil, nil)))
 
 	// run it
 	if err == nil {
