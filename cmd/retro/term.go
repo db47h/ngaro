@@ -19,7 +19,9 @@
 package main
 
 import (
+	"os"
 	"syscall"
+	"unsafe"
 
 	"github.com/pkg/term/termios"
 )
@@ -48,4 +50,27 @@ func setRawIO() (func(), error) {
 	return func() {
 		termios.Tcsetattr(0, termios.TCSANOW, &tios)
 	}, nil
+}
+
+type winsize struct {
+	row, col, xpixel, ypixel uint16
+}
+
+func ioctl(fd uintptr, request, argp uintptr) (err error) {
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, request, argp)
+	if errno != 0 {
+		err = errno
+	}
+	return err
+}
+
+func consoleSize(f *os.File) func() (int, int) {
+	return func() (int, int) {
+		var w winsize
+		err := ioctl(f.Fd(), syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&w)))
+		if err != nil {
+			return 0, 0
+		}
+		return int(w.col), int(w.row)
+	}
 }

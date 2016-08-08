@@ -17,7 +17,6 @@
 package vm_test
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -43,7 +42,7 @@ func ExampleInstance_Run() {
 	i, err := vm.New(img, imageFile,
 		vm.Input(os.Stdin),
 		vm.Input(strings.NewReader("\"testdata/core.rx\" :include\n")),
-		vm.Output(output, false))
+		vm.Output(output, nil, nil, false))
 
 	// run it
 	if err == nil {
@@ -67,27 +66,25 @@ func ExampleInstance_Run() {
 
 // Shows a common use of OUT port handlers.
 func ExampleBindOutHandler() {
+	var i *vm.Instance
 	imageFile := "testdata/retroImage"
 	img, err := vm.Load(imageFile, 0)
 	if err != nil {
 		panic(err)
 	}
 
-	// we will use a buffered output
-	output := bufio.NewWriter(os.Stdout)
-	// so according to the spec, we should flush the output as soon as port 3
-	// is written to:
+	// Our out handler, will just take the written value, and return its square.
+	// The result will be stored in the bound port, so we can read it back with
+	// IN.
 	outputHandler := func(v, port vm.Cell) error {
-		// flush output
-		output.Flush()
+		i.Ports[port] = v * v
 		return nil
 	}
-	// create the VM instance with our port handler bound to port 3.
-	// note that we do net wire any input, we just want to see the prompt and
-	// exit.
-	i, err := vm.New(img, imageFile,
-		vm.Output(output, false),
-		vm.BindOutHandler(3, outputHandler))
+	// Create the VM instance with our port handler bound to port 42.
+	// We do not wire any output, we'll just read the results from the stack.
+	i, err = vm.New(img, imageFile,
+		vm.Input(strings.NewReader(": square 42 out 42 in ; 7 square bye\n")),
+		vm.BindOutHandler(42, outputHandler))
 	if err != nil {
 		panic(err)
 	}
@@ -95,10 +92,11 @@ func ExampleBindOutHandler() {
 	if err = i.Run(); err != nil && err != io.EOF {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
+
+	fmt.Println(i.Data())
+
 	// Output:
-	// Retro 11.7.1
-	//
-	// ok
+	// [49]
 }
 
 // A simple WAIT handler that overrides the default implementation. It's used

@@ -63,13 +63,20 @@ func Input(r io.Reader) Option {
 	return func(i *Instance) error { i.PushInput(r); return nil }
 }
 
-// Output sets the output Writer. If the isatty flag is set to true, the output
-// will be treated as a raw terminal and special handling of some control
-// characters will apply. This will also enable the extended terminal support.
-func Output(w io.Writer, isatty bool) Option {
+// Output configures the output Writer.
+//
+// If non-nil, the flush function should write any buffered output data to the
+// underlying Writer.
+//
+// If non-nil, the consoleSize function should return the width and height of the
+// console window.
+//
+// If the rawtty flag is set to true, the output will be treated as a raw
+// terminal and special handling of some control characters will apply
+// (backspace and CTRL-D).
+func Output(w io.Writer, flush func() error, consoleSize func() (int, int), rawtty bool) Option {
 	return func(i *Instance) error {
-		i.tty = isatty
-		i.output = newWriter(w)
+		i.output = &output{newWriter(w), flush, consoleSize, rawtty}
 		return nil
 	}
 }
@@ -154,8 +161,7 @@ type Instance struct {
 	imageFile string
 	shrink    bool
 	input     io.RuneReader
-	output    runeWriter
-	tty       bool
+	output    *output
 }
 
 // New creates a new Ngaro Virtual Machine instance.

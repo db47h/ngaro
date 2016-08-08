@@ -20,14 +20,17 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"syscall"
 	"time"
 	"unicode/utf8"
 	"unsafe"
 )
 
-type winsize struct {
-	row, col, xpixel, ypixel uint16
+// output wraps the output device and maps some of its capabilities
+type output struct {
+	runeWriter
+	flush       func() error
+	consoleSize func() (with int, height int)
+	rawtty      bool
 }
 
 // PushInput sets r as the current input RuneReader for the VM. When this reader
@@ -53,6 +56,10 @@ func (i *Instance) In(port Cell) error {
 
 // Out is the default OUT handler for all ports.
 func (i *Instance) Out(v, port Cell) error {
+	if port == 3 && i.output != nil && i.output.flush != nil {
+		i.output.flush()
+		return nil
+	}
 	i.Ports[port] = v
 	return nil
 }
@@ -79,7 +86,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			}
 			r, size, err := i.input.ReadRune()
 			if size > 0 {
-				if i.tty && r == 4 { // CTRL-D
+				if i.output != nil && i.output.rawtty && r == 4 { // CTRL-D
 					return io.EOF
 				}
 				i.WaitReply(Cell(r), 1)
@@ -95,12 +102,12 @@ func (i *Instance) Wait(v, port Cell) error {
 			r := rune(i.Pop())
 			if i.output != nil {
 				var err error
-				if r < 0 && i.tty {
+				if r < 0 {
 					_, err = io.WriteString(i.output, "\033[2J\033[1;1H")
 				} else {
 					_, err = i.output.WriteRune(r)
 					// Erase last char if backspace
-					if r == 8 && err == nil && i.tty {
+					if r == 8 && err == nil && i.output.rawtty {
 						_, err = i.output.Write([]byte{32, 8})
 					}
 				}
@@ -157,26 +164,30 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.Ports[5] = 0
 			case -11:
 				// console width
-				var w winsize
-				err := ioctl(i.output, syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&w)))
-				if err != nil {
+				if i.output != nil && i.output.consoleSize != nil {
+					w, _ := i.output.consoleSize()
+					i.Ports[5] = Cell(w)
+				} else {
 					i.Ports[5] = 0
 				}
-				i.Ports[5] = Cell(w.col)
 			case -12:
 				// console height
-				var w winsize
-				err := ioctl(i.output, syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&w)))
-				if err != nil {
+				if i.output != nil && i.output.consoleSize != nil {
+					_, h := i.output.consoleSize()
+					i.Ports[5] = Cell(h)
+				} else {
 					i.Ports[5] = 0
 				}
-				i.Ports[5] = Cell(w.row)
 			case -13:
 				i.Ports[5] = Cell(unsafe.Sizeof(Cell(0)) * 8)
 			// -14: endianness
 			case -15:
 				// port 8 enabled
-				i.Ports[5] = -1
+				if i.output != nil {
+					i.Ports[5] = -1
+				} else {
+					i.Ports[5] = 0
+				}
 			case -16:
 				i.Ports[5] = Cell(len(i.data))
 			case -17:
@@ -187,7 +198,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			i.Ports[0] = 1
 		}
 	case 8:
-		if v := i.Ports[8]; v != 0 {
+		if v := i.Ports[8]; v != 0 && i.output != nil {
 			switch i.Ports[8] {
 			case 1:
 				fmt.Fprintf(i.output, "\033[%d;%dH", i.data[i.sp-1], i.data[i.sp])

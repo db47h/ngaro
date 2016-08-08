@@ -18,14 +18,8 @@ package vm
 
 import (
 	"io"
-	"syscall"
 	"unicode/utf8"
 )
-
-// fder wraps the Fd method
-type fder interface {
-	Fd() uintptr
-}
 
 // readWriter wraps the WriteRune method. Works the same ad bufio.Writer.WriteRune.
 type runeWriter interface {
@@ -38,28 +32,10 @@ type runeWriterWrapper struct {
 	io.Writer
 }
 
-// UnwrapFd checks if the wrapped io.Writer implements fder and returns its Fd
-// method or nil.
-func (w *runeWriterWrapper) UnwrapFd() func() uintptr {
-	if f, ok := w.Writer.(fder); ok {
-		return f.Fd
-	}
-	return nil
-}
-
-func (w *runeWriterWrapper) WriteByte(c byte) (err error) {
-	_, err = w.Writer.Write([]byte{c})
-	return
-}
-
 func (w *runeWriterWrapper) WriteRune(r rune) (size int, err error) {
 	b := [utf8.UTFMax]byte{}
 	if r < utf8.RuneSelf {
-		err = w.WriteByte(byte(r))
-		if err != nil {
-			return 0, err
-		}
-		return 1, nil
+		return w.Write([]byte{byte(r)})
 	}
 	l := utf8.EncodeRune(b[:], r)
 	return w.Writer.Write(b[0:l])
@@ -145,25 +121,4 @@ func (mr *multiRuneReader) ReadRune() (r rune, size int, err error) {
 
 func (mr *multiRuneReader) pushReader(r io.Reader) {
 	mr.readers = append([]io.RuneReader{newRuneReader(r)}, mr.readers...)
-}
-
-// ioctl to control i.output
-// TODO: Need to test ioctl on windows
-func ioctl(w runeWriter, request, argp uintptr) (err error) {
-	var fd func() uintptr
-	switch o := w.(type) {
-	case *runeWriterWrapper:
-		fd = o.UnwrapFd()
-	case fder:
-		fd = o.Fd
-	default:
-		err = syscall.Errno(syscall.EBADF)
-	}
-	if fd != nil {
-		_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd(), request, argp)
-		if errno != 0 {
-			err = errno
-		}
-	}
-	return err
 }

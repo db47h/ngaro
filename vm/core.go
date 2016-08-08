@@ -242,7 +242,7 @@ func (i *Instance) Run() (err error) {
 					return err
 				}
 			} else {
-				i.Ports[port] = v
+				i.Out(v, port)
 			}
 			i.PC++
 		case OpWait:

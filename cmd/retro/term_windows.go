@@ -23,3 +23,7 @@ import "errors"
 func setRawIO() (func(), error) {
 	return nil, errors.New("raw IO not supported")
 }
+
+func consoleSize() (int, int) {
+	return 0, 0
+}

@@ -74,16 +74,12 @@ func main() {
 
 	// buffer input if not raw tty
 	if rawtty {
-		opts = append(opts, vm.Input(os.Stdin), vm.Output(os.Stdout, true))
+		opts = append(opts, vm.Input(os.Stdin), vm.Output(os.Stdout, nil, consoleSize(os.Stdout), true))
 	} else {
 		output := bufio.NewWriter(os.Stdout)
 		opts = append(opts,
 			vm.Input(bufio.NewReader(os.Stdin)),
-			vm.Output(output, false),
-			vm.BindOutHandler(3, func(v, port vm.Cell) error {
-				output.Flush()
-				return nil
-			}))
+			vm.Output(output, output.Flush, consoleSize(os.Stdout), false))
 	}
 
 	// append withFile to the input stack
