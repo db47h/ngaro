@@ -33,28 +33,38 @@ var size = flag.Int("size", 50000, "image size in cells")
 var rawIO = flag.Bool("raw", true, "enable raw terminal IO")
 var debug = flag.Bool("debug", false, "enable debug diagnostics")
 
+func port1Handler(i *vm.Instance, v, port vm.Cell) error {
+	if v != 1 {
+		return i.Wait(v, port)
+	}
+	// if v == 1, this will always read something
+	e := i.Wait(v, port)
+	if e == nil && i.Ports[1] == 4 {
+		// CTRL-D
+		return io.EOF
+	}
+	return e
+}
+
+func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
+	return func(i *vm.Instance, v, port vm.Cell) error {
+		var e error
+		if v != 1 {
+			return i.Wait(v, port)
+		}
+		t := i.Tos() // save TOS
+		e = i.Wait(v, port)
+		if e == nil && t == 8 {
+			// th vm has written a backspace, erase char under cursor
+			_, e = w.Write([]byte{32, 8})
+		}
+		return e
+	}
+}
+
 func main() {
 	// check exit condition
 	var err error
-	var proc *vm.Instance
-	defer func() {
-		if err == nil {
-			return
-		}
-		if !*debug {
-			fmt.Fprintf(os.Stderr, "\n%v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "\n%+v\n", err)
-		if proc != nil {
-			if proc.PC < len(proc.Image) {
-				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())
-			} else {
-				fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nRet:  %v\n", proc.PC, proc.Data(), proc.Address())
-			}
-		}
-		os.Exit(1)
-	}()
 
 	flag.Parse()
 
@@ -83,32 +93,8 @@ func main() {
 		// we could also do it with wrappers around Stdin/Stdout
 		opts = append(opts,
 			vm.Input(os.Stdin),
-			vm.BindWaitHandler(1, func(v, port vm.Cell) error {
-				if v != 1 {
-					return proc.Wait(v, port)
-				}
-				// if v == 1, this will always read something
-				e := proc.Wait(v, port)
-				if e == nil && proc.Ports[1] == 4 {
-					// CTRL-D
-					return io.EOF
-				}
-				return e
-
-			}),
-			vm.BindWaitHandler(2, func(v, port vm.Cell) error {
-				var e error
-				if v != 1 {
-					return proc.Wait(v, port)
-				}
-				t := proc.Tos() // save TOS
-				e = proc.Wait(v, port)
-				if e == nil && t == 8 {
-					// th vm has written a backspace, erase char under cursor
-					_, e = outTerm.Write([]byte{32, 8})
-				}
-				return e
-			}))
+			vm.BindWaitHandler(1, port1Handler),
+			vm.BindWaitHandler(2, port2Handler(outTerm)))
 	} else {
 		// If not raw tty, buffer stdin, but do not check further if the i/o is
 		// a terminal or not. The standard VT100 behavior is sufficient here.
@@ -129,10 +115,31 @@ func main() {
 	if err != nil {
 		return
 	}
-	proc, err = vm.New(img, *fileName, opts...)
+	proc, err := vm.New(img, *fileName, opts...)
 	if err != nil {
 		return
 	}
+
+	// catch any errors during run
+	defer func() {
+		if err == nil {
+			return
+		}
+		if !*debug {
+			fmt.Fprintf(os.Stderr, "\n%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "\n%+v\n", err)
+		if proc != nil {
+			if proc.PC < len(proc.Image) {
+				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())
+			} else {
+				fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nRet:  %v\n", proc.PC, proc.Data(), proc.Address())
+			}
+		}
+		os.Exit(1)
+	}()
+
 	if err = proc.Run(); err == io.EOF {
 		err = nil
 	}

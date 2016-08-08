@@ -97,13 +97,13 @@ func Shrink(shrink bool) Option {
 }
 
 // InHandler is the function prototype for custom IN handlers.
-type InHandler func(port Cell) error
+type InHandler func(i *Instance, port Cell) error
 
 // OutHandler is the function prototype for custom OUT handlers.
-type OutHandler func(v, port Cell) error
+type OutHandler func(i *Instance, v, port Cell) error
 
 // WaitHandler is the function prototype for custom WAIT handlers.
-type WaitHandler func(v, port Cell) error
+type WaitHandler func(i *Instance, v, port Cell) error
 
 // BindInHandler binds the porvided IN handler to the given port.
 //
@@ -185,7 +185,7 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 
 	// default Wait Handlers
 	for _, p := range []Cell{1, 2, 4, 5, 8} {
-		i.waitH[p] = i.Wait
+		i.waitH[p] = (*Instance).Wait
 	}
 
 	if err := i.SetOptions(opts...); err != nil {

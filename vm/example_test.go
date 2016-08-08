@@ -66,7 +66,6 @@ func ExampleInstance_Run() {
 
 // Shows a common use of OUT port handlers.
 func ExampleBindOutHandler() {
-	var i *vm.Instance
 	imageFile := "testdata/retroImage"
 	img, err := vm.Load(imageFile, 0)
 	if err != nil {
@@ -76,13 +75,13 @@ func ExampleBindOutHandler() {
 	// Our out handler, will just take the written value, and return its square.
 	// The result will be stored in the bound port, so we can read it back with
 	// IN.
-	outputHandler := func(v, port vm.Cell) error {
+	outputHandler := func(i *vm.Instance, v, port vm.Cell) error {
 		i.Ports[port] = v * v
 		return nil
 	}
 	// Create the VM instance with our port handler bound to port 42.
 	// We do not wire any output, we'll just read the results from the stack.
-	i, err = vm.New(img, imageFile,
+	i, err := vm.New(img, imageFile,
 		vm.Input(strings.NewReader(": square 42 out 42 in ; 7 square bye\n")),
 		vm.BindOutHandler(42, outputHandler))
 	if err != nil {
@@ -104,16 +103,13 @@ func ExampleBindOutHandler() {
 // report canvas availability and its size and implement the actual drawing on
 // port 6. See http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html
 func ExampleBindWaitHandler() {
-	var i *vm.Instance
-	var err error
-
 	imageFile := "testdata/retroImage"
 	img, err := vm.Load(imageFile, 50000)
 	if err != nil {
 		panic(err)
 	}
 
-	waitHandler := func(v, port vm.Cell) error {
+	waitHandler := func(i *vm.Instance, v, port vm.Cell) error {
 		switch port {
 		case 5: // override VM capabilities
 			switch v {
@@ -149,7 +145,7 @@ func ExampleBindWaitHandler() {
 	// no output set as we don't care.
 	// out program first requests the VM size just to check that our override of
 	// port 5 properly hands over unknown requests to the default implementation.
-	i, err = vm.New(img, imageFile,
+	i, err := vm.New(img, imageFile,
 		vm.Input(strings.NewReader(
 			": cap ( n-n ) 5 out 0 0 out wait 5 in ;\n"+
 				"-1 cap -2 cap -3 cap -4 cap bye\n")),
@@ -173,10 +169,6 @@ func ExampleBindWaitHandler() {
 // example, we use a pair of handlers: a request handler that will initiate a
 // backround job, and a result handler to query and wait for the result.
 func ExampleBindWaitHandler_async() {
-	// declare the VM instance pointer so we can capture it in out custom handler.
-	var i *vm.Instance
-	var err error
-
 	imageFile := "testdata/retroImage"
 	img, err := vm.Load(imageFile, 0)
 	if err != nil {
@@ -199,7 +191,7 @@ func ExampleBindWaitHandler_async() {
 	// The request hqndler will be bound to port 1000. Write 1 to this port with
 	// any arguments on the stack, then do a WAIT.
 	// It will respond on the same channel with a task ID.
-	execHandler := func(v, port vm.Cell) error {
+	execHandler := func(i *vm.Instance, v, port vm.Cell) error {
 		idx := vm.Cell(len(channels)) + 1
 		c := make(chan vm.Cell)
 		channels[idx] = c
@@ -213,7 +205,7 @@ func ExampleBindWaitHandler_async() {
 	// followed by a wait and get the result with.
 	//
 	//	1001 IN
-	resultHandler := func(v, port vm.Cell) error {
+	resultHandler := func(i *vm.Instance, v, port vm.Cell) error {
 		c := channels[v]
 		if c == nil {
 			// no such channel. No need to error: if we do not reply, port 0
@@ -229,7 +221,7 @@ func ExampleBindWaitHandler_async() {
 	// Note that the port communication MUST be compiled in words (here fibGo
 	// and fibGet). Issuing the IN/OUT/WAIT from the prompt would fail
 	// because of interference from the I/O code.
-	i, err = vm.New(img, imageFile,
+	i, err := vm.New(img, imageFile,
 		vm.Input(strings.NewReader(
 			": fibGo ( n-ID ) 1 1000 out 0 0 out wait 1000 in ;\n"+
 				": fibGet ( ID-n ) 1001 out 0 0 out wait 1001 in ;\n"+

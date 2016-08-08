@@ -236,7 +236,7 @@ func (i *Instance) Run() (err error) {
 			port := i.data[i.sp]
 			if h := i.inH[port]; h != nil {
 				i.sp--
-				if err = h(port); err != nil {
+				if err = h(i, port); err != nil {
 					return err
 				}
 			} else {
@@ -249,7 +249,7 @@ func (i *Instance) Run() (err error) {
 			v, port := i.data[i.sp-1], i.data[i.sp]
 			i.sp -= 2
 			if h := i.outH[port]; h != nil {
-				if err = h(v, port); err != nil {
+				if err = h(i, v, port); err != nil {
 					return err
 				}
 			} else {
@@ -263,7 +263,7 @@ func (i *Instance) Run() (err error) {
 					if v == 0 {
 						continue
 					}
-					if err = h(v, p); err != nil {
+					if err = h(i, v, p); err != nil {
 						return err
 					}
 				}
