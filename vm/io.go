@@ -30,13 +30,15 @@ import (
 //
 // Flush writes any buffered unwritten output.
 //
-// Size returns the width and height of the terminal window.
+// Size returns the width and height of the terminal window. Should return 0, 0
+// if unsupported.
 //
-// Clear clears the terminal window.
+// Clear clears the terminal window and moves the cursor to the top left.
 //
 // CursorPos moves the cursor at he given position.
 //
-// FgColor and BgColor respectively set the foreground and background color.
+// FgColor and BgColor respectively set the foreground and background color of
+// all characters subsequently written.
 type Terminal interface {
 	io.Writer
 	WriteRune(r rune) (size int, err error)

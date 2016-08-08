@@ -151,8 +151,9 @@ func (t *vt100Terminal) Port8Enabled() bool { return true }
 // NewVT100Terminal returns a new Terminal implementation that uses VT100 escape
 // sequences to implement the Clear, CusrosrPos, FgColor and BgColor methods.
 //
-// The caller only needs the Flush and size functions. These functions may be
-// nil, in which case they will be implemented as no-ops.
-func NewVT100Terminal(w io.Writer, flush func() error, consoleSize func() (width int, height int)) Terminal {
-	return &vt100Terminal{newWriter(w), flush, consoleSize}
+// The caller only needs to provide the functions implementing Flush and
+// Size. These functions may be nil, in which case they will be implemented as
+// no-ops.
+func NewVT100Terminal(w io.Writer, flush func() error, size func() (width int, height int)) Terminal {
+	return &vt100Terminal{newWriter(w), flush, size}
 }

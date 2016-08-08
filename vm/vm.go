@@ -82,7 +82,8 @@ func Input(r io.Reader) Option {
 	return func(i *Instance) error { i.PushInput(r); return nil }
 }
 
-// Output configures the output TerminalWriter.
+// Output configures the output Terminal. For simple I/O, the helper function
+// NewVT100Terminal will build a Terminal wrapper around an io.Writer.
 func Output(t Terminal) Option {
 	return func(i *Instance) error {
 		i.output = t
