@@ -2,3 +2,9 @@ language: go
 
 go:
     - 1.6.2
+
+install:
+    - go get github.com/pkg/errors
+    - go get github.com/pkg/term
+
+script: go test -v ./...
