@@ -45,7 +45,7 @@ type Instance struct {
 	waitH     map[Cell]WaitHandler
 	imageFile string
 	shrink    bool
-	input     io.RuneReader
+	input     io.Reader
 	output    Terminal
 	fid       Cell
 	files     map[Cell]*os.File

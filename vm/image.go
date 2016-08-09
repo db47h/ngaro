@@ -83,9 +83,9 @@ func (i Image) DecodeString(start Cell) string {
 	end := pos
 	for ; end < len(i) && i[end] != 0; end++ {
 	}
-	str := make([]rune, end-pos)
+	str := make([]byte, end-pos)
 	for idx, c := range i[pos:end] {
-		str[idx] = rune(c)
+		str[idx] = byte(c)
 	}
 	return string(str)
 }
@@ -94,8 +94,8 @@ func (i Image) DecodeString(start Cell) string {
 // terminates it with a '\0' Cell.
 func (i Image) EncodeString(start Cell, s string) {
 	pos := int(start)
-	for _, r := range s {
-		i[pos] = Cell(r)
+	for _, c := range []byte(s) {
+		i[pos] = Cell(c)
 		pos++
 	}
 	i[pos] = 0

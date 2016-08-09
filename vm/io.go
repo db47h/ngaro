@@ -20,7 +20,6 @@ import (
 	"io"
 	"os"
 	"time"
-	"unicode/utf8"
 	"unsafe"
 )
 
@@ -46,7 +45,6 @@ import (
 // methods have any effect.
 type Terminal interface {
 	io.Writer
-	WriteRune(r rune) (size int, err error)
 	Flush() error
 	Size() (width int, height int)
 	Clear()
@@ -85,12 +83,15 @@ func (i *Instance) openfile(name string, mode Cell) Cell {
 func (i *Instance) PushInput(r io.Reader) {
 	// dont use a multi reader unless necessary
 	switch in := i.input.(type) {
-	case nil: // no input yet, single assign
-		i.input = newRuneReader(r)
-	case *multiRuneReader:
+	case nil:
+		// no input yet, single assign
+		i.input = r
+	case *multiReader:
+		// stack it
 		in.pushReader(r)
 	default:
-		i.input = &multiRuneReader{[]io.RuneReader{newRuneReader(r), i.input}}
+		// build multireader from two single readers
+		i.input = &multiReader{[]io.Reader{r, i.input}}
 	}
 }
 
@@ -130,14 +131,15 @@ func (i *Instance) Wait(v, port Cell) error {
 	switch port {
 	case 1: // input
 		if v == 1 {
+			var b [1]byte
 			if i.input == nil {
 				return io.EOF
 			}
-			r, size, err := i.input.ReadRune()
+			size, err := i.input.Read(b[:])
 			if size > 0 {
-				i.WaitReply(Cell(r), 1)
+				i.WaitReply(Cell(b[0]), 1)
 			} else {
-				i.WaitReply(utf8.RuneError, 1)
+				i.WaitReply(-1, 1)
 				if err != nil {
 					return err
 				}
@@ -145,13 +147,13 @@ func (i *Instance) Wait(v, port Cell) error {
 		}
 	case 2: // output
 		if v == 1 {
-			r := rune(i.Pop())
+			c := i.Pop()
 			if i.output != nil {
 				var err error
-				if r < 0 {
+				if c < 0 {
 					i.output.Clear()
 				} else {
-					_, err = i.output.WriteRune(r)
+					_, err = i.output.Write([]byte{byte(c)})
 				}
 				if err != nil {
 					return err

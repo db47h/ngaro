@@ -50,19 +50,11 @@
 //
 // should give you the size of the image.
 //
-// Since characters are stored one per 32 bits Cell in Retro, the VM supports
-// unicode I/O. If the io.Reader and io.Writer provided as input implement the
-// ReadRune and WriteRune methods respectively, these methods will be used for
-// I/O.
-//
 // Regarding I/O, reading console width and height will only work if the
 // io.Writer set as output with vm.Output implements the Fd method. So this will
 // only work if the output is os.Stdout or a pty (and NOT wrapped in a
 // bufio.Writer).
 //
 // TODO:
-//	- complete file i/o
-//	- add a reset func: clear stacks/reset ip to 0, accept Options (input / output may need to be reset as well)
-//	- go routines in cmd/retro
 //	- implement stats and debug image dump
 package vm
