@@ -65,6 +65,27 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 func main() {
 	// check exit condition
 	var err error
+	var proc *vm.Instance
+
+	// catch and log errors during run
+	defer func() {
+		if err == nil {
+			return
+		}
+		if !*debug {
+			fmt.Fprintf(os.Stderr, "\n%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "\n%+v\n", err)
+		if proc != nil {
+			if proc.PC < len(proc.Image) {
+				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())
+			} else {
+				fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nRet:  %v\n", proc.PC, proc.Data(), proc.Address())
+			}
+		}
+		os.Exit(1)
+	}()
 
 	flag.Parse()
 
@@ -115,30 +136,10 @@ func main() {
 	if err != nil {
 		return
 	}
-	proc, err := vm.New(img, *fileName, opts...)
+	proc, err = vm.New(img, *fileName, opts...)
 	if err != nil {
 		return
 	}
-
-	// catch any errors during run
-	defer func() {
-		if err == nil {
-			return
-		}
-		if !*debug {
-			fmt.Fprintf(os.Stderr, "\n%v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "\n%+v\n", err)
-		if proc != nil {
-			if proc.PC < len(proc.Image) {
-				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())
-			} else {
-				fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nRet:  %v\n", proc.PC, proc.Data(), proc.Address())
-			}
-		}
-		os.Exit(1)
-	}()
 
 	if err = proc.Run(); err == io.EOF {
 		err = nil
