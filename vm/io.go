@@ -56,6 +56,30 @@ type Terminal interface {
 	Port8Enabled() bool
 }
 
+func (i *Instance) openfile(name string, mode Cell) Cell {
+	var flags int
+	switch mode {
+	case 0:
+		flags = os.O_RDONLY
+	case 1:
+		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	case 2:
+		flags = os.O_RDWR | os.O_CREATE | os.O_APPEND
+	case 3:
+		flags = os.O_RDWR
+	default:
+		return 0
+	}
+	f, err := os.OpenFile(name, flags, 0666)
+	if err != nil {
+		return 0
+	}
+	for ; i.files[i.fid] != nil; i.fid++ {
+	}
+	i.files[i.fid] = f
+	return i.fid
+}
+
 // PushInput sets r as the current input RuneReader for the VM. When this reader
 // reaches EOF, the previously pushed reader will be used.
 func (i *Instance) PushInput(r io.Reader) {
@@ -137,20 +161,79 @@ func (i *Instance) Wait(v, port Cell) error {
 		}
 	case 4: // FileIO
 		if v != 0 {
-			i.Ports[0] = 1
+			var b [1]byte
 			switch v {
 			case 1: // save image
 				i.Image.Save(i.imageFile, i.shrink)
-				i.Ports[4] = 0
+				i.WaitReply(0, 4)
 			case 2: // include file
-				i.Ports[4] = 0
+				i.WaitReply(0, 4)
 				f, err := os.Open(i.Image.DecodeString(i.Pop()))
 				if err != nil {
 					return err
 				}
 				i.PushInput(f)
+			case -1: // open file
+				fd := i.openfile(i.Image.DecodeString(i.data[i.sp-1]), i.data[i.sp])
+				i.sp -= 2
+				i.WaitReply(fd, 4)
+			case -2: // read byte
+				f := i.files[i.Pop()]
+				if f != nil {
+					f.Read(b[:])
+				}
+				i.WaitReply(Cell(b[0]), 4)
+			case -3: // write byte
+				var l int
+				b[0] = byte(i.data[i.sp-1])
+				f := i.files[i.data[i.sp]]
+				i.sp -= 2
+				if f != nil {
+					l, _ = f.Write(b[:])
+				}
+				i.WaitReply(Cell(l), 4)
+			case -4: // close fd
+				var ret Cell = 1
+				id := i.Pop()
+				if f := i.files[id]; f != nil {
+					if err := f.Close(); err == nil {
+						i.files[id] = nil
+						i.fid = id
+						ret = 0
+					}
+				}
+				i.WaitReply(ret, 4)
+			case -5: // ftell
+				var p int64
+				if f := i.files[i.Pop()]; f != nil {
+					p, _ = f.Seek(0, 1)
+				}
+				i.WaitReply(Cell(p), 4)
+			case -6: // seek
+				var p int64
+				o, f := i.data[i.sp-1], i.files[i.data[i.sp]]
+				i.sp -= 2
+				if f != nil {
+					p, _ = f.Seek(int64(o), 0)
+				}
+				i.WaitReply(Cell(p), 4)
+			case -7: // file size
+				var sz Cell
+				if f := i.files[i.Pop()]; f != nil {
+					if fi, err := f.Stat(); err == nil {
+						sz = Cell(fi.Size())
+					}
+				}
+				i.WaitReply(sz, 4)
+			case -8: // delete
+				err := os.Remove(i.Image.DecodeString(i.Pop()))
+				if err != nil {
+					i.WaitReply(0, 4)
+				} else {
+					i.WaitReply(-1, 4)
+				}
 			default:
-				i.Ports[4] = 0
+				i.WaitReply(0, 4)
 			}
 		}
 	case 5: // VM capabilities

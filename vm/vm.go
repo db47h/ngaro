@@ -16,7 +16,10 @@
 
 package vm
 
-import "io"
+import (
+	"io"
+	"os"
+)
 
 // Cell is the raw type stored in a memory location.
 type Cell int32
@@ -44,6 +47,8 @@ type Instance struct {
 	shrink    bool
 	input     io.RuneReader
 	output    Terminal
+	fid       Cell
+	files     map[Cell]*os.File
 }
 
 // Option interface
@@ -182,6 +187,8 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		outH:      make(map[Cell]OutHandler),
 		waitH:     make(map[Cell]WaitHandler),
 		imageFile: imageFile,
+		files:     make(map[Cell]*os.File),
+		fid:       1,
 	}
 
 	// default Wait Handlers
