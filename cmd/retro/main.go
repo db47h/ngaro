@@ -32,6 +32,7 @@ var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
 var size = flag.Int("size", 50000, "image size in cells")
 var rawIO = flag.Bool("raw", true, "enable raw terminal IO")
 var debug = flag.Bool("debug", false, "enable debug diagnostics")
+var dump = flag.Bool("dump", false, "dump stacks and image upon exit, for ngarotest.py")
 
 func port1Handler(i *vm.Instance, v, port vm.Cell) error {
 	if v != 1 {
@@ -67,8 +68,13 @@ func main() {
 	var err error
 	var proc *vm.Instance
 
-	// catch and log errors during run
+	stdout := bufio.NewWriter(os.Stdout)
+	output := vm.NewVT100Terminal(stdout, stdout.Flush, consoleSize(os.Stdout))
+
+	// catch and log errors
 	defer func() {
+		output.Flush()
+
 		if err == nil {
 			return
 		}
@@ -99,13 +105,10 @@ func main() {
 		}
 	}
 
-	output := bufio.NewWriter(os.Stdout)
-	outTerm := vm.NewVT100Terminal(output, output.Flush, consoleSize(os.Stdout))
-
 	// default options
 	var opts = []vm.Option{
 		vm.Shrink(*shrink),
-		vm.Output(outTerm),
+		vm.Output(output),
 	}
 
 	if rawtty {
@@ -115,7 +118,7 @@ func main() {
 		opts = append(opts,
 			vm.Input(os.Stdin),
 			vm.BindWaitHandler(1, port1Handler),
-			vm.BindWaitHandler(2, port2Handler(outTerm)))
+			vm.BindWaitHandler(2, port2Handler(output)))
 	} else {
 		// If not raw tty, buffer stdin, but do not check further if the i/o is
 		// a terminal or not. The standard VT100 behavior is sufficient here.
@@ -140,8 +143,13 @@ func main() {
 	if err != nil {
 		return
 	}
-
 	if err = proc.Run(); err == io.EOF {
 		err = nil
+	}
+	if *dump {
+		err = proc.Dump(output)
+		if err != nil {
+			return
+		}
 	}
 }

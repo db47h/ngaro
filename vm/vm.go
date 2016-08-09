@@ -19,6 +19,7 @@ package vm
 import (
 	"io"
 	"os"
+	"strconv"
 )
 
 // Cell is the raw type stored in a memory location.
@@ -35,6 +36,7 @@ type Instance struct {
 	PC        int    // Program Counter (aka. Instruction Pointer)
 	Image     Image  // Memory image
 	Ports     []Cell // I/O ports
+	fileCells int
 	sp        int
 	rsp       int
 	data      []Cell
@@ -169,7 +171,10 @@ func (i *Instance) SetOptions(opts ...Option) error {
 // New creates a new Ngaro Virtual Machine instance.
 //
 // The image parameter is the Cell array used as memory by the VM. Usually
-// loaded from file with the Load function.
+// loaded from file with the Load function. Note that New expects the lenght of
+// the slice to be the actual image file size (in Cells) and its capacity set to
+// the run-time image size, so New will expand the slice to its full capacity
+// before using it.
 //
 // The imageFile parameter is the fileName that will be used to dump the
 // contents of the memory image. It does not have to exist or even be writable
@@ -181,7 +186,7 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		PC:        0,
 		sp:        -1,
 		rsp:       -1,
-		Image:     image,
+		Image:     image[:cap(image)],
 		Ports:     make([]Cell, portCount),
 		inH:       make(map[Cell]InHandler),
 		outH:      make(map[Cell]OutHandler),
@@ -189,6 +194,7 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		imageFile: imageFile,
 		files:     make(map[Cell]*os.File),
 		fid:       1,
+		fileCells: len(image),
 	}
 
 	// default Wait Handlers
@@ -231,4 +237,43 @@ func (i *Instance) Address() []Cell {
 // InstructionCount returns the number of instructions executed so far.
 func (i *Instance) InstructionCount() int64 {
 	return i.insCount
+}
+
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (w *errWriter) Write(p []byte) (n int, err error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+	n, err = w.w.Write(p)
+	if err != nil {
+		w.err = err
+	}
+	return n, err
+}
+
+func (w *errWriter) dumpSlice(a []Cell) error {
+	l := len(a) - 1
+	if l >= 0 {
+		for i := 0; i < l; i++ {
+			io.WriteString(w, strconv.Itoa(int(a[i])))
+			w.Write([]byte{' '})
+		}
+		io.WriteString(w, strconv.Itoa(int(a[l])))
+	}
+	return w.err
+}
+
+// Dump dumps the virtual machine stacks and image to the specified io.Writer.
+func (i *Instance) Dump(w io.Writer) error {
+	ew := &errWriter{w: w}
+	ew.Write([]byte{'\x1C'})
+	ew.dumpSlice(i.data[:i.sp+1])
+	ew.Write([]byte{'\x1D'})
+	ew.dumpSlice(i.address[:i.rsp+1])
+	ew.Write([]byte{'\x1D'})
+	return ew.dumpSlice(i.Image[:i.fileCells])
 }

@@ -28,9 +28,12 @@ import (
 // Image encapsulates a VM's memory
 type Image []Cell
 
-// Load loads an image from file fileName. The image size will be the largest of
-// (file cells + 1024) and minSize parameter.
-func Load(fileName string, minSize int) (Image, error) {
+// Load loads an image from file fileName. The returned slice should have its
+// length equal to the number of cells in the file and its capacity equal to the
+// maximum of the requested capacity and the image file size + 1024 free cells.
+// When using this slice to create a new VM, New will get the lenght to track
+// the image file size and expand the slice to its full capacity.
+func Load(fileName string, capacity int) (Image, error) {
 	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -44,15 +47,13 @@ func Load(fileName string, minSize int) (Image, error) {
 	if sz > int64((^uint(0))>>1) { // MaxInt
 		return nil, fmt.Errorf("Load %v: file too large", fileName)
 	}
-	var t Cell
-	sz /= int64(unsafe.Sizeof(t))
-	fileCells := sz
+	fileCells := int(sz / int64(unsafe.Sizeof(Cell(0))))
 	// make sure there are at least 1024 free cells at the end of the image
-	sz += 1024
-	if int64(minSize) > fileCells {
-		sz = int64(minSize)
+	imgCells := fileCells + 1024
+	if capacity > imgCells {
+		imgCells = capacity
 	}
-	i := make(Image, sz)
+	i := make(Image, fileCells, imgCells)
 	err = binary.Read(f, binary.LittleEndian, i[:fileCells])
 	if err != nil {
 		return nil, err
