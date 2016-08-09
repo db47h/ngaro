@@ -192,24 +192,27 @@ func ExampleBindWaitHandler_async() {
 	// any arguments on the stack, then do a WAIT.
 	// It will respond on the same channel with a task ID.
 	execHandler := func(i *vm.Instance, v, port vm.Cell) error {
+		// find an unused job id
 		idx := vm.Cell(len(channels)) + 1
+		// make i/o channel and save it
 		c := make(chan vm.Cell)
 		channels[idx] = c
+		// launch job
 		go fib(i.Pop(), c)
-		// write back channel ID
+		// respond with channel ID
 		i.WaitReply(idx, port)
 		return nil
 	}
 
-	// The result handler will be wired to port 1001. Write 1 to this port
-	// followed by a wait and get the result with.
+	// The result handler will be wired to port 1001. Write the job id to this
+	// port followed by a wait and get the result with:
 	//
 	//	1001 IN
 	resultHandler := func(i *vm.Instance, v, port vm.Cell) error {
 		c := channels[v]
 		if c == nil {
 			// no such channel. No need to error: if we do not reply, port 0
-			// will be 0.
+			// will be 0, so client code should check port 0 as well.
 			return nil
 		}
 		i.WaitReply(<-c, port)
@@ -217,15 +220,15 @@ func ExampleBindWaitHandler_async() {
 		return nil
 	}
 
-	// No output, we'll just grab the values from the stack on exit.
-	// Note that the port communication MUST be compiled in words (here fibGo
-	// and fibGet). Issuing the IN/OUT/WAIT from the prompt would fail
-	// because of interference from the I/O code.
+	// No output, we'll just grab the values from the stack on exit. Note that
+	// the port communication MUST be compiled in words (here fibGo and fibGet).
+	// Issuing IN/OUT/WAIT from the listener would fail because of interference
+	// from the I/O code.
 	i, err := vm.New(img, imageFile,
 		vm.Input(strings.NewReader(
-			": fibGo ( n-ID ) 1 1000 out 0 0 out wait 1000 in ;\n"+
-				": fibGet ( ID-n ) 1001 out 0 0 out wait 1001 in ;\n"+
-				"46 fibGo fibGet bye\n")),
+			`: fibGo ( n-ID ) 1 1000 out 0 0 out wait 1000 in ;
+			 : fibGet ( ID-n ) 1001 out 0 0 out wait 1001 in ;
+			 46 fibGo fibGet bye `)),
 		vm.BindWaitHandler(1000, execHandler),
 		vm.BindWaitHandler(1001, resultHandler))
 	if err != nil {
