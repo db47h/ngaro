@@ -171,7 +171,7 @@ func (i *Instance) SetOptions(opts ...Option) error {
 // New creates a new Ngaro Virtual Machine instance.
 //
 // The image parameter is the Cell array used as memory by the VM. Usually
-// loaded from file with the Load function. Note that New expects the lenght of
+// loaded from file with the Load function. Note that New expects the length of
 // the slice to be the actual image file size (in Cells) and its capacity set to
 // the run-time image size, so New will expand the slice to its full capacity
 // before using it.

@@ -31,7 +31,7 @@ type Image []Cell
 // Load loads an image from file fileName. The returned slice should have its
 // length equal to the number of cells in the file and its capacity equal to the
 // maximum of the requested capacity and the image file size + 1024 free cells.
-// When using this slice to create a new VM, New will get the lenght to track
+// When using this slice to create a new VM, New will get the length to track
 // the image file size and expand the slice to its full capacity.
 func Load(fileName string, capacity int) (Image, error) {
 	f, err := os.Open(fileName)
@@ -91,7 +91,7 @@ func (i Image) DecodeString(start Cell) string {
 	return string(str)
 }
 
-// EncodeString writes the given string at postion start in the Image and
+// EncodeString writes the given string at position start in the Image and
 // terminates it with a '\0' Cell.
 func (i Image) EncodeString(start Cell, s string) {
 	pos := int(start)
