@@ -19,11 +19,19 @@
 // Please visit http://forthworks.com/retro/ to get you started about the Retro
 // language and the Ngaro Virtual Machine.
 //
-// This implementation allows communication between Retro programs and Go
-// programs via custom I/O handlers (i.e. scripting Go programs in Retro). The
-// package examples demonstrate various use cases. For more details on I/O
-// handling in the Ngaro VM, please refer to
+// The main purpose of this implementation is to allow communication between
+// Retro programs and Go programs via custom I/O handlers (i.e. scripting Go
+// programs in Retro). The package examples demonstrate various use cases. For
+// more details on I/O handling in the Ngaro VM, please refer to
 // http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
+//
+// This implementation passes all tests from the retro-language test suite and
+// its performance when running tests/core.rx is slightly better than with the
+// reference implementations:
+//
+//	1.20s for this implementation, compiled with Go 1.7rc6.
+//	1.30s for the reference Go implementation, compiled with Go 1.7rc6
+//	2.22s for the reference C implementation, compiled with gcc-5.4 -O3 -fomit-frame-pointer
 //
 // For all intents and purposes, the VM behaves according to the specification.
 // With one exception: if you venture into hacking the VM code itself, be aware
@@ -39,7 +47,7 @@
 // write to the terminal and will clear port 0 before you get a chance to
 // read/clear response values. This is of particular importance for users of
 // custom IO handlers. To work around this issue, a synchronous OUT-WAIT-IN IO
-// sequence must be compiled in a word, so that it will run atomically, without
+// sequence must be compiled in a word, so that it will run atomically without
 // interference from the listener. For example, to read VM capabilities, you can
 // do this:
 //
@@ -54,7 +62,4 @@
 // io.Writer set as output with vm.Output implements the Fd method. So this will
 // only work if the output is os.Stdout or a pty (and NOT wrapped in a
 // bufio.Writer).
-//
-// TODO:
-//	- implement stats and debug image dump
 package vm
