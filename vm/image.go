@@ -107,16 +107,25 @@ func (i Image) EncodeString(start Cell, s string) {
 func (i Image) Disassemble(pc int) (next int, disasm string) {
 	var d bytes.Buffer
 	op := i[pc]
-	d.WriteString(op.disasm())
+	if op >= Cell(len(opcodes)) {
+		d.WriteString("call ")
+		d.WriteString(strconv.Itoa(int(op)))
+	} else {
+		d.WriteString(opcodes[op])
+	}
 	pc++
 	switch op {
-	case OpLit, OpLoop, OpJump, OpGtJump, OpLtJump, OpNeJump, OpEqJump:
+	case OpLoop, OpJump, OpGtJump, OpLtJump, OpNeJump, OpEqJump:
 		if pc < len(i) {
-			d.WriteByte('\t')
+			d.WriteByte(' ')
+		}
+		fallthrough
+	case OpLit:
+		if pc < len(i) {
 			d.WriteString(strconv.Itoa(int(i[pc])))
 			return pc + 1, d.String()
 		}
-		d.WriteString("\t???")
+		d.WriteString("???")
 	}
 	return pc, d.String()
 }

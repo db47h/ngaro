@@ -272,25 +272,25 @@ func ExampleImage_Disassemble() {
 	for i := 0; i < len(fib); {
 		var d string
 		i, d = fib.Disassemble(i)
-		fmt.Println(d)
+		fmt.Printf("% 4d\t%s\n", i, d)
 	}
 
 	// Output:
-	// Push
-	// Lit	0
-	// Lit	1
-	// Pop
-	// Jump	15
-	// Push
-	// Dup
-	// Push
-	// Add
-	// Pop
-	// Swap
-	// Pop
-	// Loop	8
-	// Swap
-	// Drop
-	// Return
-	// Lit	???
+	//    1	push
+	//    3	0
+	//    5	1
+	//    6	pop
+	//    8	jump 15
+	//    9	push
+	//   10	dup
+	//   11	push
+	//   12	+
+	//   13	pop
+	//   14	swap
+	//   15	pop
+	//   17	loop 8
+	//   18	swap
+	//   19	drop
+	//   20	;
+	//   21	???
 }

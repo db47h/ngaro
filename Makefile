@@ -3,8 +3,7 @@ SRC := vm/*.go cmd/retro/*.go
 
 .PHONY: all install clean test bench qbench get-deps
 
-all:
-	go test -v $(PKG)/vm
+all: test
 
 retro: $(SRC)
 	go build $(PKG)/cmd/retro
@@ -19,6 +18,9 @@ clean:
 distclean:
 	go clean -i -r $(PKG)/cmd/retro
 	$(RM) retro
+
+test:
+	go test -v $(PKG)/...
 
 bench:
 	go test -v $(PKG)/vm -run DONOTRUNTESTS -bench .
