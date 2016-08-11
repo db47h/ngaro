@@ -18,6 +18,41 @@ package vm
 
 import "github.com/pkg/errors"
 
+// Ngaro Virtual Machine Opcodes.
+const (
+	OpNop Cell = iota
+	OpLit
+	OpDup
+	OpDrop
+	OpSwap
+	OpPush
+	OpPop
+	OpLoop
+	OpJump
+	OpReturn
+	OpGtJump
+	OpLtJump
+	OpNeJump
+	OpEqJump
+	OpFetch
+	OpStore
+	OpAdd
+	OpSub
+	OpMul
+	OpDimod
+	OpAnd
+	OpOr
+	OpXor
+	OpShl
+	OpShr
+	OpZeroExit
+	OpInc
+	OpDec
+	OpIn
+	OpOut
+	OpWait
+)
+
 // Tos returns the top stack item.
 func (i *Instance) Tos() Cell {
 	return i.data[i.sp]

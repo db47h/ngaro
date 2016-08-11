@@ -29,7 +29,7 @@ import (
 // Shows how to load an image, setup the VM with multiple readers/init code.
 func ExampleInstance_Run() {
 	imageFile := "testdata/retroImage"
-	img, err := vm.Load(imageFile, 50000)
+	img, _, err := vm.Load(imageFile, 50000)
 	if err != nil {
 		panic(err)
 	}
@@ -67,7 +67,7 @@ func ExampleInstance_Run() {
 // Shows a common use of OUT port handlers.
 func ExampleBindOutHandler() {
 	imageFile := "testdata/retroImage"
-	img, err := vm.Load(imageFile, 0)
+	img, _, err := vm.Load(imageFile, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -104,7 +104,7 @@ func ExampleBindOutHandler() {
 // port 6. See http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html
 func ExampleBindWaitHandler() {
 	imageFile := "testdata/retroImage"
-	img, err := vm.Load(imageFile, 50000)
+	img, _, err := vm.Load(imageFile, 50000)
 	if err != nil {
 		panic(err)
 	}
@@ -170,7 +170,7 @@ func ExampleBindWaitHandler() {
 // backround job, and a result handler to query and wait for the result.
 func ExampleBindWaitHandler_async() {
 	imageFile := "testdata/retroImage"
-	img, err := vm.Load(imageFile, 0)
+	img, _, err := vm.Load(imageFile, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -244,53 +244,4 @@ func ExampleBindWaitHandler_async() {
 
 	// Output:
 	// [1836311903]
-}
-
-// Disassemble is pretty straightforward. Here we Disassemble a hand crafted
-// fibonacci function.
-func ExampleImage_Disassemble() {
-	var fib vm.Image = []vm.Cell{
-		vm.OpPush,
-		vm.OpLit, 0,
-		vm.OpLit, 1,
-		vm.OpPop,
-		vm.OpJump, 15, // junp to loop
-		vm.OpPush, // save count
-		vm.OpDup,
-		vm.OpPush, // save n-1
-		vm.OpAdd,  // n-2 + n-1
-		vm.OpPop,
-		vm.OpSwap, // stack: n-2 n-1
-		vm.OpPop,
-		vm.OpLoop, 8, // loop
-		vm.OpSwap,
-		vm.OpDrop,
-		vm.OpReturn,
-		vm.OpLit, // Error: unterminated LIT at the end of imah
-	}
-
-	for i := 0; i < len(fib); {
-		var d string
-		i, d = fib.Disassemble(i)
-		fmt.Printf("% 4d\t%s\n", i, d)
-	}
-
-	// Output:
-	//    1	push
-	//    3	0
-	//    5	1
-	//    6	pop
-	//    8	jump 15
-	//    9	push
-	//   10	dup
-	//   11	push
-	//   12	+
-	//   13	pop
-	//   14	swap
-	//   15	pop
-	//   17	loop 8
-	//   18	swap
-	//   19	drop
-	//   20	;
-	//   21	???
 }

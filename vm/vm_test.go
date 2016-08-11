@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
 )
 
@@ -86,7 +87,8 @@ func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
 }
 
 func TestLit(t *testing.T) {
-	p := setup(C{1, 25}, nil, nil)
+	as, _ := asm.Assemble("testLit", strings.NewReader("lit 25"))
+	p := setup(as, nil, nil)
 	check(t, p, 0, C{25}, nil)
 }
 
@@ -185,7 +187,7 @@ func Test_Fib_AsmRecursive(t *testing.T) {
 
 func Test_Fib_RetroLoop(t *testing.T) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
-	img, _ := vm.Load(imageFile, 50000)
+	img, _, _ := vm.Load(imageFile, 50000)
 	i, _ := vm.New(img, imageFile,
 		vm.Input(strings.NewReader(fib)))
 	i.Run()
@@ -227,7 +229,7 @@ func Benchmark_Fib_RetroLoop(b *testing.B) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		img, _ := vm.Load(imageFile, 50000)
+		img, _, _ := vm.Load(imageFile, 50000)
 		i, _ := vm.New(img, imageFile,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
@@ -239,7 +241,7 @@ func Benchmark_Fib_RetroRecursive(b *testing.B) {
 	fib := ": fib dup 2 < if; 1- dup fib swap 1- fib + ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		img, _ := vm.Load(imageFile, 50000)
+		img, _, _ := vm.Load(imageFile, 50000)
 		i, _ := vm.New(img, imageFile,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
@@ -257,7 +259,7 @@ func BenchmarkRun(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		img, err := vm.Load(imageFile, 50000)
+		img, _, err := vm.Load(imageFile, 50000)
 		if err != nil {
 			b.Fatalf("%+v\n", err)
 		}

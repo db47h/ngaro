@@ -17,48 +17,46 @@
 package vm
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
-	"strconv"
 	"unsafe"
 )
 
 // Image encapsulates a VM's memory
 type Image []Cell
 
-// Load loads an image from file fileName. The returned slice should have its
-// length equal to the number of cells in the file and its capacity equal to the
-// maximum of the requested capacity and the image file size + 1024 free cells.
-// When using this slice to create a new VM, New will get the length to track
-// the image file size and expand the slice to its full capacity.
-func Load(fileName string, capacity int) (Image, error) {
+// Load loads an image from file fileName. Returns a VM Image ready to run, the
+// actual number of cells read from the file and any error.
+//
+// The returned Image should have its length equal equal to the maximum of the
+// requested minimum size and the image file size + 1024 free cells.
+func Load(fileName string, minSize int) (i Image, fileCells int, err error) {
 	f, err := os.Open(fileName)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	sz := st.Size()
 	if sz > int64((^uint(0))>>1) { // MaxInt
-		return nil, fmt.Errorf("Load %v: file too large", fileName)
+		return nil, 0, fmt.Errorf("Load %v: file too large", fileName)
 	}
-	fileCells := int(sz / int64(unsafe.Sizeof(Cell(0))))
+	fileCells = int(sz / int64(unsafe.Sizeof(Cell(0))))
 	// make sure there are at least 1024 free cells at the end of the image
 	imgCells := fileCells + 1024
-	if capacity > imgCells {
-		imgCells = capacity
+	if minSize > imgCells {
+		imgCells = minSize
 	}
-	i := make(Image, fileCells, imgCells)
+	i = make(Image, imgCells)
 	err = binary.Read(f, binary.LittleEndian, i[:fileCells])
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return i, nil
+	return i, fileCells, nil
 }
 
 // Save saves the image. If the shrink parameter is true, only the portion of
@@ -100,32 +98,4 @@ func (i Image) EncodeString(start Cell, s string) {
 		pos++
 	}
 	i[pos] = 0
-}
-
-// Disassemble disassembles the cells at position pc and returns the position of
-// the next valid opcode and the disassembly string.
-func (i Image) Disassemble(pc int) (next int, disasm string) {
-	var d bytes.Buffer
-	op := i[pc]
-	if op >= Cell(len(opcodes)) {
-		d.WriteString("call ")
-		d.WriteString(strconv.Itoa(int(op)))
-	} else {
-		d.WriteString(opcodes[op])
-	}
-	pc++
-	switch op {
-	case OpLoop, OpJump, OpGtJump, OpLtJump, OpNeJump, OpEqJump:
-		if pc < len(i) {
-			d.WriteByte(' ')
-		}
-		fallthrough
-	case OpLit:
-		if pc < len(i) {
-			d.WriteString(strconv.Itoa(int(i[pc])))
-			return pc + 1, d.String()
-		}
-		d.WriteString("???")
-	}
-	return pc, d.String()
 }

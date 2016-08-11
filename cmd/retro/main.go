@@ -135,7 +135,7 @@ func main() {
 		opts = append(opts, vm.Input(bufio.NewReader(f)))
 	}
 
-	img, err := vm.Load(*fileName, *size)
+	img, fileCells, err := vm.Load(*fileName, *size)
 	if err != nil {
 		return
 	}
@@ -147,7 +147,7 @@ func main() {
 		err = nil
 	}
 	if *dump {
-		err = proc.Dump(output)
+		err = dumpVM(proc, fileCells, output)
 		if err != nil {
 			return
 		}

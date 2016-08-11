@@ -62,4 +62,12 @@
 // io.Writer set as output with vm.Output implements the Fd method. So this will
 // only work if the output is os.Stdout or a pty (and NOT wrapped in a
 // bufio.Writer).
+//
+// TODO:
+//	- local labels: .lbl defines a local. in uselabel, check locals first. when a local is defined, check for references to it in the globals
+// and if not defined yet, move its uses to the locals. flush/write locals when new global is defined.
+//	- make the asm parser stack errors.
+//	- build tests from ngarotest.py
+//	- move cmd/retro to the root of the package
+//	- symbolic image? i.e. generate images with symbol references.
 package vm
