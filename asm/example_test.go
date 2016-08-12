@@ -99,13 +99,13 @@ func ExampleDisassemble() {
 	fibS := `
 	:fib
 		push 0 1 pop	( like [ 0 1 ] dip )
-		jump _
-	:l	push
+		jump 1+		( jump forward to the next :1 )
+	:0  push		( local label )
 		dup	push
 		+
 		pop	swap
 		pop
-	:_	loop l
+	:1  loop 0-		( local label back )
 		swap drop ;
 		lit
 		`
@@ -140,4 +140,32 @@ func ExampleDisassemble() {
 	//   18	drop
 	//   19	;
 	//   20	???
+}
+
+// Demonstrates use of local labels
+func Example_locals() {
+	code := `
+	:1	jump 1+
+	:2	jump 1-
+	:1	jump 2+
+	:2	jump 1-
+	`
+
+	img, err := asm.Assemble("locals", strings.NewReader(code))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for pc := 0; pc < len(img); {
+		fmt.Printf("% 4d\t", pc)
+		pc = asm.Disassemble(img, pc, os.Stdout)
+		fmt.Println()
+	}
+
+	// Output:
+	//    0	jump 4
+	//    2	jump 0
+	//    4	jump 6
+	//    6	jump 4
 }

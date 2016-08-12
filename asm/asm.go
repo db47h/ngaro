@@ -17,39 +17,45 @@
 // Package asm provides utility functions to assemble and disassemble Ngaro
 // VM code.
 //
-// Supported opcodes:
-//	opcode	asm	stack	description
-//	0	nop		no-op
-//	1	lit	-n	place next value in next cell on TOS
-//	2	dup	n-nn	duplicate TOS
-//	3	drop	n-	drop TOS
-//	4	swap	xy-yx	swap TOS and NOS
-//	5	push	n-	push TOS to address stack
-//	6	pop	-n	pop value on top of address stack and place it on TOS
-//	7	loop	n-?	decrement TOS. If >0 jump to address in next cell, else drop TOS and do nothing
-//	8	jump		jump to address in next cell
+// Supported assembler mnemonics:
+//
+//	TOS is the value on top of the data stack. NOS is the next value on the data stack.
+//	Instructions with a check mark in the "arg" column expect an argument in the cell
+//	following them.
+//
+//	opcode	asm	arg	stack	description
+//	------	---	---	-----	------------------------------------------------------------------------
+//	0	nop			no-op
+//	1	lit	✓	-n	place next value in next cell on TOS
+//	2	dup		n-nn	duplicate TOS
+//	3	drop		n-	drop TOS
+//	4	swap		xy-yx	swap TOS and NOS
+//	5	push		n-	push TOS to address stack
+//	6	pop		-n	pop value on top of address stack and place it on TOS
+//	7	loop	✓	n-?	decrement TOS. If >0 jump to address in next cell, else drop TOS and do nothing
+//	8	jump	✓		jump to address in next cell
 //	9	;			return: pop address from address stack, add 1 and jump to it.
-//	10	>jump	xy-	jump to address in next cell if NOS > TOS
-//	11	<jump	xy-	jump to address in next cell if NOS < TOS
-//	12	!jump	xy-	to address in next cell if NOS != TOS
-//	13	=jump	xy-	to address in next cell if NOS == TOS
-//	14	@	a-n	fetch: get the value at the address on TOS and place it on TOS.
-//	15	!	na-	store: store the value in NOS at address in TOS
-//	16	+	xy-z	add NOS to TOS and place result on TOS
-//	17	-	xy-z	subtract NOS from TOS and place result on TOS
-//	18	*	xy-z	multiply NOS with TOS and place result on TOS
-//	19	/mod	xy-rq	divide TOS by NOS and place remainder in NOS, quotient in TOS
-//	20	and	xy-z	do a logical and of NOS and TOS and place result on TOS
-//	21	or	xy-z	do a logical or of NOS and TOS and place result on TOS
-//	22	xor	xy-z	do a logical xor of NOS and TOS and place result on TOS
-//	23	<<	xy-z	do a logical left shift of NOS by TOS and place result on TOS
-//	24	>>	xy-z	do an arithmetic right shift of NOS by TOS and place result on TOS
-//	25	0;	n-?	ZeroExit: if TOS is 0, drop it and do a return, else do nothing
-//	26	1+	n-n	increment tos
-//	27	1-	n-n	decrement tos
-//	28	in	p-n	I/O in (see Ngaro VM spec)
-//	29	out	np-	I/O out (see Ngaro VM spec)
-//	30	wait	?-	I/O wait (see Ngaro VM spec)
+//	10	>jump	✓	xy-	jump to address in next cell if NOS > TOS
+//	11	<jump	✓	xy-	jump to address in next cell if NOS < TOS
+//	12	!jump	✓	xy-	jump to address in next cell if NOS != TOS
+//	13	=jump	✓	xy-	jump to address in next cell if NOS == TOS
+//	14	@		a-n	fetch: get the value at the address on TOS and place it on TOS.
+//	15	!		na-	store: store the value in NOS at address in TOS
+//	16	+		xy-z	add NOS to TOS and place result on TOS
+//	17	-		xy-z	subtract NOS from TOS and place result on TOS
+//	18	*		xy-z	multiply NOS with TOS and place result on TOS
+//	19	/mod		xy-rq	divide TOS by NOS and place remainder in NOS, quotient in TOS
+//	20	and		xy-z	do a logical and of NOS and TOS and place result on TOS
+//	21	or		xy-z	do a logical or of NOS and TOS and place result on TOS
+//	22	xor		xy-z	do a logical xor of NOS and TOS and place result on TOS
+//	23	<<		xy-z	do a logical left shift of NOS by TOS and place result on TOS
+//	24	>>		xy-z	do an arithmetic right shift of NOS by TOS and place result on TOS
+//	25	0;		n-?	ZeroExit: if TOS is 0, drop it and do a return, else do nothing
+//	26	1+		n-n	increment tos
+//	27	1-		n-n	decrement tos
+//	28	in		p-n	I/O in (see Ngaro VM spec)
+//	29	out		np-	I/O out (see Ngaro VM spec)
+//	30	wait		?-	I/O wait (see Ngaro VM spec)
 //
 // Comments:
 //
@@ -66,7 +72,8 @@
 // The following ae invalid comments:
 //
 //	(this will be seen by the parser as label "(this" and will not work )
-//	( comments may ( not be nested ) the parser will complain trying to resolve "the" as a label )
+//	( comments may ( not be nested ) here, the parser will complain trying to resolve
+//	  "here," as a label )
 //
 // Literals and label/const identifiers:
 //
@@ -82,8 +89,10 @@
 //	- If a token is the name of a defined constant, it will be replaced internally by
 //	  the constant's value and can be used anywhere an integer literal is expected.
 //
-//	- Then name resolution applies: the token is looked up in the assembler opcodes
-//	  and if no such opcode is found, it is considered to be a label.
+//	- Then name resolution applies:
+//	  - if an instruction is expected, the token is looked up in the assembler
+//	    mnemonics and if no match is found, it is considered to be a label.
+//	  - if an argument is expected, the token is always considered a label.
 //
 // You may therefore define unusual labels or constant names (at least for Go
 // programmers) such as "2dup", "(weird" or "end-weird)". Also, more than one
@@ -117,13 +126,41 @@
 //
 //	:foobar	nop ;	( we can actually place any number of instructions on the same line )
 //
-// Please note that the parser does not prevent you from using/defining labels
-// with the same name as instructions. Just be aware that it is not supported,
-// will certainly prevent you from using implicit calls, will most likely make
-// your code break in unexpected places and could be fixed in a future version.
+// Local labels:
 //
-// For the same reason, you could define a label like ':0' but it will not be
-// usable in any way and may also be fixed in the future.
+// Local labels work in the same way as in the GNU assembler. They are defined
+// as a colon followed by a sequence of digits (i.e. :007, :0, :42). Although
+// they can be defined multiple times, the compiler internally assigns them a
+// unique name of the form N·counter (the middle character is '\u00b7').
+// References to such labels must be suffixed with either a '-' (meaning backward
+// reference to the last definition of this label), or a '+' (meaning a forward
+// reference to the next definition of this label). For example, in the following
+// code:
+//
+//	:1	jump 1+	( not to be confused with the '1+' mnemonic. Here it means next occurence of :1 )
+//	:2	jump 1-
+//	:1	jump 2+
+//	:2	jump 1-
+//
+// the labels will be internally converted to:
+//
+//	:1·1	jump 1·2
+//	:2·1	jump 1·1
+//	:1·2	jump 2·1
+//	:2·2	jump 1·2
+//
+// As a consequence, you should not use or define labels of the form N·N where N is
+// any non-empty sequence of difigts. This also prevents the definition of labels
+// of the form N+ or N- because they will not be addressable.
+//
+// Please note that the parser does not prevent you either from using/defining labels
+// with the same name as instructions. The only caveat, besides confusing yourself,
+// is that you will not be able to use implicit calls to such labels:
+//
+//	:drop	'D' 1 1 out 0 0 out wait ( print 'D' )
+//		drop ;	( this will not loop forever, drop will be compiled as opcode 3, not a call )
+//	drop		( still opcode 3 )
+//	.dat drop	( will compile an implicit call to our custom drop )
 //
 // Assembler directives:
 //

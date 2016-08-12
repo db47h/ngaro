@@ -64,8 +64,6 @@
 // bufio.Writer).
 //
 // TODO:
-//	- local labels: .lbl defines a local. in uselabel, check locals first. when a local is defined, check for references to it in the globals
-// and if not defined yet, move its uses to the locals. flush/write locals when new global is defined.
 //	- make the asm parser stack errors.
 //	- build tests from ngarotest.py
 //	- move cmd/retro to the root of the package

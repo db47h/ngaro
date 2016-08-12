@@ -27,25 +27,32 @@ import (
 	"github.com/db47h/ngaro/vm"
 )
 
+const localSep = "·"
+
 func isIdentRune(ch rune, i int) bool {
 	return unicode.IsLetter(ch) || unicode.IsSymbol(ch) || unicode.IsPunct(ch) || unicode.IsDigit(ch)
 }
 
+// labelSite registers at witch address and position in the source stream a
+// given label is used.
 type labelSite struct {
 	pos     scanner.Position
 	address int
 }
 
+// label keeps track of all uses of a given label.
 type label struct {
-	labelSite
-	uses []labelSite
+	labelSite             // where the label is defined
+	uses      []labelSite // where it's used
 }
 
+// parser provides the parsing and compiling.
 type parser struct {
 	i       []vm.Cell
 	pc      int
 	s       scanner.Scanner
 	labels  map[string]*label
+	locCtr  map[int]int
 	consts  map[string]labelSite
 	cstName string
 	cstPos  scanner.Position
@@ -55,10 +62,14 @@ type parser struct {
 func newParser() *parser {
 	p := new(parser)
 	p.labels = make(map[string]*label)
+	p.locCtr = make(map[int]int)
 	p.consts = make(map[string]labelSite)
 	return p
 }
 
+// write is the actual compilation function. It emits the given value at the
+// current compile address, then imcrements it. It also takes care of managing
+// the image size.
 func (p *parser) write(v vm.Cell) {
 	for p.pc >= len(p.i) {
 		p.i = append(p.i, make([]vm.Cell, 16384)...)
@@ -67,18 +78,63 @@ func (p *parser) write(v vm.Cell) {
 	p.pc++
 }
 
-func (p *parser) useLabel(name string) error {
-	lbl := p.labels[name]
-	if lbl == nil {
-		lbl = &label{
-			// use current position as valid temp position
-			labelSite{p.s.Pos(), -1},
-			nil,
+// isLocalLabel checks whether a label is local (i.e. numeric).
+func isLocalLabel(name string) (int, bool) {
+	n, err := strconv.Atoi(name)
+	return n, err == nil
+}
+
+// makeLabelRef registers the use of the given label at the current position.
+func (p *parser) makeLabelRef(name string) {
+	var isLocal bool
+	var look byte
+	var n int
+	var lbl *label
+	// demangle name and check if local
+	if len(name) > 1 {
+		if look = name[len(name)-1]; look == '-' || look == '+' {
+			t := name[:len(name)-1]
+			n, isLocal = isLocalLabel(t)
+			if isLocal {
+				name = t
+			}
 		}
-		p.labels[name] = lbl
+	}
+	switch isLocal {
+	case true:
+		switch look {
+		case '-':
+			// build name
+			t := name + localSep + strconv.Itoa(p.locCtr[n]) // last index suffix
+			lbl = p.labels[t]
+			if lbl == nil {
+				p.err = scanError(&p.s, "Backward reference to undefined local label "+name)
+				return
+			}
+		case '+':
+			// build name
+			t := name + localSep + strconv.Itoa(p.locCtr[n]+1) // next index suffix
+			lbl = p.labels[t]
+			if lbl == nil {
+				lbl = &label{
+					labelSite{p.s.Pos(), -1},
+					nil,
+				}
+				p.labels[t] = lbl
+			}
+		}
+	case false:
+		lbl = p.labels[name]
+		if lbl == nil {
+			lbl = &label{
+				// use current position as valid temp position
+				labelSite{p.s.Pos(), -1},
+				nil,
+			}
+			p.labels[name] = lbl
+		}
 	}
 	lbl.uses = append(lbl.uses, labelSite{p.s.Pos(), p.pc})
-	return nil
 }
 
 func scanError(s *scanner.Scanner, msg string) error {
@@ -184,13 +240,22 @@ func (p *parser) Parse(name string, r io.Reader) error {
 					p.err = scanError(&p.s, "Label redefinition:"+n+", prefiously defined as a constant here:"+cst.pos.String())
 					break S
 				}
+				// local label?
+				if i, ok := isLocalLabel(n); ok {
+					// increment counter and update name
+					idx := p.locCtr[i] + 1
+					p.locCtr[i] = idx
+					n = n + localSep + strconv.Itoa(idx)
+				}
 				if l, ok := p.labels[n]; ok {
+					// set address of forward declaration
 					if l.address != -1 {
 						p.err = scanError(&p.s, "Label redefinition: "+n+", previous definition here:"+l.pos.String())
 					}
 					l.address = p.pc
 					l.pos = p.s.Pos()
 				} else {
+					// new label
 					p.labels[n] = &label{
 						labelSite{p.s.Pos(), p.pc},
 						nil,
@@ -219,7 +284,7 @@ func (p *parser) Parse(name string, r io.Reader) error {
 					}
 					p.cstPos = p.s.Pos()
 					state = 3
-				default: // should use this to define local labels
+				default:
 					p.err = scanError(&p.s, "Unknown dot directive: "+s)
 				}
 			default:
@@ -233,11 +298,7 @@ func (p *parser) Parse(name string, r io.Reader) error {
 					p.err = scanError(&p.s, "Unexpected label as directive argument: "+s)
 					break S
 				}
-				if op, ok := opcodeIndex[s]; ok {
-					if state != 0 {
-						p.err = scanError(&p.s, "Unexpected opcode as argument: "+s)
-						break S
-					}
+				if op, ok := opcodeIndex[s]; state == 0 && ok {
 					p.write(op)
 					switch op {
 					case vm.OpLit, vm.OpLoop, vm.OpJump, vm.OpGtJump, vm.OpLtJump, vm.OpNeJump, vm.OpEqJump:
@@ -251,7 +312,7 @@ func (p *parser) Parse(name string, r io.Reader) error {
 						p.write(vm.OpPush)
 						p.write(vm.OpJump)
 					}
-					p.useLabel(s)
+					p.makeLabelRef(s)
 					p.write(0)
 					state = 0
 				}
