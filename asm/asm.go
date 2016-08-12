@@ -243,6 +243,9 @@ func init() {
 //
 // Then name parameter is used only in error messages to name the source of the
 // error. If the io.Reader is a file, name should be the file name.
+//
+// The returned error, if not nil, can safely be cast to a []ErrAsm slice that
+// will contain up to 10 entries.
 func Assemble(name string, r io.Reader) (img []vm.Cell, err error) {
 	p := newParser()
 	err = p.Parse(name, r)

@@ -99,13 +99,13 @@ func ExampleDisassemble() {
 	fibS := `
 	:fib
 		push 0 1 pop	( like [ 0 1 ] dip )
-		jump 1+		( jump forward to the next :1 )
+		jump z		( jump forward to the next :1 )
 	:0  push		( local label )
 		dup	push
 		+
 		pop	swap
 		pop
-	:1  loop 0-		( local label back )
+	:1  loop :x		( local label back )
 		swap drop ;
 		lit
 		`
