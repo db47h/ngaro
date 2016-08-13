@@ -1,7 +1,7 @@
 PKG := github.com/db47h/ngaro
 SRC := vm/*.go cmd/retro/*.go
 
-.PHONY: all install clean test bench qbench get-deps
+.PHONY: all install clean test bench qbench get-deps cover-asm
 
 all: test
 
@@ -24,6 +24,9 @@ test:
 
 bench:
 	go test -v $(PKG)/vm -run DONOTRUNTESTS -bench .
+
+cover-asm:
+	go test $(PKG)/asm -coverprofile=cover.out && go tool cover -html=cover.out
 
 qbench: retro
 	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro <vm/testdata/core.rx >/dev/null

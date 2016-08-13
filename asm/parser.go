@@ -181,6 +181,49 @@ func isIdentRune(ch rune, i int) bool {
 	return unicode.IsLetter(ch) || unicode.IsSymbol(ch) || unicode.IsPunct(ch) || unicode.IsDigit(ch)
 }
 
+// Scan does transforms results from scanner.Scan:
+// Our assembly is forth like; words can start with and contain digits,
+// symbols, punctuation and so on. The stdlib scanner can only return
+// tokens, so we need to convert back to Ints when required.
+// Chars are only a special case of ints.
+func (p *parser) scan() (tok rune, s string, v int) {
+	tok = p.s.Scan()
+	s = p.s.TokenText()
+
+	if tok == scanner.EOF {
+		return tok, "", 0
+	}
+
+	if tok != scanner.Ident {
+		p.error("Unexpected character " + strconv.QuoteRune(tok))
+		return tok, s, 0
+	}
+
+	// check int
+	n, err := strconv.ParseInt(s, 0, 8*int(unsafe.Sizeof(vm.Cell(0))))
+	if err == nil {
+		return scanner.Int, s, int(n)
+	}
+	// check char
+	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
+		r, _, tail, err := strconv.UnquoteChar(s[1:len(s)-1], '\'')
+		if err != nil {
+			p.error(err.Error() + " in character literal " + s)
+			return scanner.Int, s, 0
+		}
+		if len(tail) > 0 {
+			p.error("Illegal character literal " + s)
+		}
+		return scanner.Int, s, int(r)
+	}
+	// constant ?
+	c, ok := p.consts[s]
+	if ok {
+		return scanner.Int, s, c.address
+	}
+	return tok, s, v
+}
+
 // Parse does the parsing and compiling. Returns the compiled VM image as a Cell
 // slice and any error that occurred. If not nil, the returned error can safely
 // be cast to an ErrAsm value that will contain up to 10 entries.
@@ -204,48 +247,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 	p.s.Mode = scanner.ScanIdents
 	p.s.Filename = name
 
-	for tok := p.s.Scan(); !p.abort() && tok != scanner.EOF; tok = p.s.Scan() {
-		var v int
-		s := p.s.TokenText()
-
-		// Our assembly is forth like: words can start with and contain digits,
-		// symbols, punctuation and so on. The stdlib scanner can only return
-		// tokens, so we need to convert back to Ints when required.
-		// Chars are only a special case of ints.
-		switch tok {
-		case scanner.Ident:
-			// check int
-			n, err := strconv.ParseInt(s, 0, 8*int(unsafe.Sizeof(vm.Cell(0))))
-			if err == nil {
-				tok = scanner.Int
-				v = int(n)
-				break
-			}
-			// check char
-			if len(s) > 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
-				r, _, tail, err := strconv.UnquoteChar(s[1:len(s)-1], '\'')
-				if err != nil {
-					p.error(err.Error() + " in character literal " + s)
-					break
-				}
-				if len(tail) > 0 {
-					p.error("Illegal character literal " + s)
-				}
-				v = int(r)
-				tok = scanner.Int
-				break
-			}
-			// constant ?
-			c, ok := p.consts[s]
-			if ok {
-				v = c.address
-				tok = scanner.Int
-				break
-			}
-		default:
-			p.error("Unexpected character " + strconv.QuoteRune(tok))
-		}
-
+	for tok, s, v := p.scan(); !p.abort() && tok != scanner.EOF; tok, s, v = p.scan() {
 	s: // now we only have ints or idents
 		switch tok {
 		case scanner.Int:
@@ -272,11 +274,12 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 				case 0:
 					n := s[1:]
 					if len(n) == 0 {
-						p.error("Empty label name")
+						p.error("Empty label name in label definition")
 						break s
 					}
 					if cst, ok := p.consts[n]; ok {
-						p.error("Label redefinition: " + n + ", prefiously defined as a constant here: " + cst.pos.String())
+						p.error("Label " + n + " already defined as a constant")
+						p.errs = append(p.errs, parseError(cst.pos, "Previous definition of "+n))
 						break s
 					}
 					// local label?
@@ -289,7 +292,8 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 					if l, ok := p.labels[n]; ok {
 						// set address of forward declaration
 						if l.address != -1 {
-							p.error("Label redefinition: " + n + ", previous definition here: " + l.pos.String())
+							p.error("Label " + n + " already defined")
+							p.errs = append(p.errs, parseError(l.pos, "Previous definition of "+n))
 						}
 						l.address = p.pc
 						l.pos = p.s.Position
@@ -322,19 +326,19 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 				case ".dat":
 					state = 1
 				case ".equ":
-					t := p.s.Scan()
+					t, ts, _ := p.scan()
 					if t != scanner.Ident {
-						// BUG: numbers will work here. Need to move the first part of this function out to a new func and call it here.
-						p.error(".equ: expected identifier, got " + p.s.TokenText())
+						p.error("Invalid constant identifier: " + p.s.TokenText())
 						// just eat up next token and keep parsing
-						p.s.Scan()
+						p.scan()
 						break s
 					}
-					p.cstName = p.s.TokenText()
+					p.cstName = ts
 					if l, ok := p.labels[p.cstName]; ok {
-						p.error(".equ: redifinition of " + p.cstName + ", previously defined/used as a label here: " + l.pos.String())
+						p.error("Constant " + p.cstName + " already used as a label")
+						p.errs = append(p.errs, parseError(l.pos, "Previous use of "+p.cstName))
 						// just eat up next token and keep parsing
-						p.s.Scan()
+						p.scan()
 						break s
 					}
 					p.cstPos = p.s.Position
@@ -345,7 +349,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 			default:
 				if s == "(" {
 					// skip comments
-					for ; !p.abort() && tok != scanner.EOF && (tok != scanner.Ident || p.s.TokenText() != ")"); tok = p.s.Scan() {
+					for tok, s, _ = p.scan(); !p.abort() && tok != scanner.EOF && (tok != scanner.Ident || s != ")"); tok, s, _ = p.scan() {
 					}
 					break s
 				}

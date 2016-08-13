@@ -171,7 +171,8 @@
 // defines a constant value. <IDENTIFIER> can be any valid identifier (any
 // combination of letters, symbols, digits and punctuation). The value must be
 // an integer value, named constant or character literal. Constants must be defined
-// before being used.
+// before being used. Constants can be redefined, the compiler will always use the
+// last assigned value.
 //
 //	.org <value>
 //

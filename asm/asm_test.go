@@ -23,7 +23,7 @@ import (
 	"github.com/db47h/ngaro/asm"
 )
 
-// check some errors. We're not checking the messages, rather that they point at
+// check some errors. We're not checking the whole messages, rather that they point at
 // the correct place.
 func TestAssemble_errors(t *testing.T) {
 	// scanner error
@@ -38,14 +38,16 @@ func TestAssemble_errors(t *testing.T) {
 
 	// others
 	code = `
-	[un]		( undefined )
 	jump :lab	( valid but undef'ed )
 	jump 0001-
 	.org 001+		( stupid )
 	.org :foo
 	'yo'
 	'\x'
+	.equ ABC  567
+	.equ 1234 567
 	>jump .zoo
+	.dat :lab ( only way to call a colon prefixed label )
 ::foo
 :001
 	`
@@ -53,6 +55,9 @@ func TestAssemble_errors(t *testing.T) {
 
 	errs := err.(asm.ErrAsm)
 	// locate and match errors in source code
+	if len(errs) < 10 {
+		t.Errorf("Expected 10 errors, got %d", len(errs))
+	}
 	for _, e := range errs {
 		o := e.Pos.Offset
 		end := o + 4
@@ -63,8 +68,33 @@ func TestAssemble_errors(t *testing.T) {
 		if !strings.HasSuffix(e.Msg, code[o:end]) {
 			t.Errorf("Error message \"%s\" points to %s", e.Msg, code[o:end])
 		}
+	}
+}
 
+func TestAssemble_errors2(t *testing.T) {
+	data := []struct {
+		name string
+		code string
+		err  string
+	}{
+		{"empty_lbl", ":", "empty_lbl:1:1: Empty label name in label definition"},
+		{"lbl_cst", ".equ FOO 0 :FOO", "lbl_cst:1:12: Label FOO already defined as a constant\nlbl_cst:1:6: Previous definition of FOO"},
+		{"lbl_redef", ":FOO :FOO", "lbl_redef:1:6: Label FOO already defined\nlbl_redef:1:1: Previous definition of FOO"},
+		{"cst_label", "bar .equ bar 0 :bar .equ bar 0",
+			"cst_label:1:10: Constant bar already used as a label\n" +
+				"cst_label:1:1: Previous use of bar\n" +
+				"cst_label:1:26: Constant bar already used as a label\n" +
+				"cst_label:1:16: Previous use of bar"},
 	}
 
-	// TODO: test uncovered errors (about 5 are easy)
+	for _, i := range data {
+		_, err := asm.Assemble(i.name, strings.NewReader(i.code))
+		if err == nil {
+			t.Errorf("Test %s: unexpected nil error", i.name)
+			continue
+		}
+		if err.Error() != i.err {
+			t.Errorf("Test %s:\nExpected: %v\n     Got: %v", i.name, i.err, err)
+		}
+	}
 }

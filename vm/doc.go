@@ -64,6 +64,7 @@
 // bufio.Writer).
 //
 // TODO:
+//	- asm: macro assembler?
 //	- cmd/ngaro: permit saving to a different image file
 //	- build tests from ngarotest.py
 //	- move cmd/retro to the root of the package
