@@ -29,7 +29,7 @@ func ExampleAssemble() {
 		.org 32 ( set compilation address )
 		
 :foo	42 bar drop ;
-:bar	1+ ;  ( several instruction on the same line )
+:bar	1+ ;  ( several instructions on the same line )
 		
 :table	( data structure )
 		.dat -100		( will appear in the disassembly as "call -100" )
