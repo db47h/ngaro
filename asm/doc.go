@@ -170,7 +170,8 @@
 //
 // defines a constant value. <IDENTIFIER> can be any valid identifier (any
 // combination of letters, symbols, digits and punctuation). The value must be
-// an integer value, named constant or character literal.
+// an integer value, named constant or character literal. Constants must be defined
+// before being used.
 //
 //	.org <value>
 //

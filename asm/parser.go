@@ -223,10 +223,13 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 			}
 			// check char
 			if len(s) > 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
-				r, _, _, err := strconv.UnquoteChar(s[1:len(s)-1], '\'')
+				r, _, tail, err := strconv.UnquoteChar(s[1:len(s)-1], '\'')
 				if err != nil {
-					p.error(err.Error())
+					p.error(err.Error() + " in character literal " + s)
 					break
+				}
+				if len(tail) > 0 {
+					p.error("Illegal character literal " + s)
 				}
 				v = int(r)
 				tok = scanner.Int
@@ -265,40 +268,47 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 		case scanner.Ident:
 			switch s[0] {
 			case ':':
-				if state != 0 {
-					p.error("Unexpected label definition as argument: " + s)
+				switch state {
+				case 0:
+					n := s[1:]
+					if len(n) == 0 {
+						p.error("Empty label name")
+						break s
+					}
+					if cst, ok := p.consts[n]; ok {
+						p.error("Label redefinition: " + n + ", prefiously defined as a constant here: " + cst.pos.String())
+						break s
+					}
+					// local label?
+					if i, ok := isLocalLabel(n); ok {
+						// increment counter and update name
+						idx := p.locCtr[i] + 1
+						p.locCtr[i] = idx
+						n = n + localSep + strconv.Itoa(idx)
+					}
+					if l, ok := p.labels[n]; ok {
+						// set address of forward declaration
+						if l.address != -1 {
+							p.error("Label redefinition: " + n + ", previous definition here: " + l.pos.String())
+						}
+						l.address = p.pc
+						l.pos = p.s.Position
+					} else {
+						// new label
+						p.labels[n] = &label{
+							labelSite{p.s.Position, p.pc},
+							nil,
+						}
+					}
+				case 1:
+					p.makeLabelRef(s)
+					p.write(0)
+					state = 0
+					break s
+				default:
+					p.error("Unexpected label as directive argument: " + s)
 					// attempt to continue parsing with state = 0
 					state = 0
-				}
-				n := s[1:]
-				if len(n) == 0 {
-					p.error("Empty label name")
-					break s
-				}
-				if cst, ok := p.consts[n]; ok {
-					p.error("Label redefinition:" + n + ", prefiously defined as a constant here:" + cst.pos.String())
-					break s
-				}
-				// local label?
-				if i, ok := isLocalLabel(n); ok {
-					// increment counter and update name
-					idx := p.locCtr[i] + 1
-					p.locCtr[i] = idx
-					n = n + localSep + strconv.Itoa(idx)
-				}
-				if l, ok := p.labels[n]; ok {
-					// set address of forward declaration
-					if l.address != -1 {
-						p.error("Label redefinition: " + n + ", previous definition here:" + l.pos.String())
-					}
-					l.address = p.pc
-					l.pos = p.s.Position
-				} else {
-					// new label
-					p.labels[n] = &label{
-						labelSite{p.s.Position, p.pc},
-						nil,
-					}
 				}
 			case '.':
 				if state != 0 {
@@ -314,6 +324,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 				case ".equ":
 					t := p.s.Scan()
 					if t != scanner.Ident {
+						// BUG: numbers will work here. Need to move the first part of this function out to a new func and call it here.
 						p.error(".equ: expected identifier, got " + p.s.TokenText())
 						// just eat up next token and keep parsing
 						p.s.Scan()
@@ -321,7 +332,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 					}
 					p.cstName = p.s.TokenText()
 					if l, ok := p.labels[p.cstName]; ok {
-						p.error(".equ: redifinition of " + p.cstName + ", previously defined/used as a label: here: " + l.pos.String())
+						p.error(".equ: redifinition of " + p.cstName + ", previously defined/used as a label here: " + l.pos.String())
 						// just eat up next token and keep parsing
 						p.s.Scan()
 						break s

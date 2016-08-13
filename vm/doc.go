@@ -64,6 +64,7 @@
 // bufio.Writer).
 //
 // TODO:
+//	- cmd/ngaro: permit saving to a different image file
 //	- build tests from ngarotest.py
 //	- move cmd/retro to the root of the package
 //	- symbolic image? i.e. generate images with symbol references.
