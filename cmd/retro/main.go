@@ -26,10 +26,11 @@ import (
 	"github.com/db47h/ngaro/vm"
 )
 
-var fileName = flag.String("image", "retroImage", "Use `filename` as the image to load")
+var fileName = flag.String("image", "retroImage", "Load image from file `filename`")
+var outFileName = flag.String("o", "", "Save image to file `filename`")
 var withFile = flag.String("with", "", "Add `filename` to the input stack")
 var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
-var size = flag.Int("size", 50000, "image size in cells")
+var size = flag.Int("size", 100000, "image size in cells")
 var rawIO = flag.Bool("raw", true, "enable raw terminal IO")
 var debug = flag.Bool("debug", false, "enable debug diagnostics")
 var dump = flag.Bool("dump", false, "dump stacks and image upon exit, for ngarotest.py")
@@ -139,7 +140,10 @@ func main() {
 	if err != nil {
 		return
 	}
-	proc, err = vm.New(img, *fileName, opts...)
+	if *outFileName == "" {
+		outFileName = fileName
+	}
+	proc, err = vm.New(img, *outFileName, opts...)
 	if err != nil {
 		return
 	}
