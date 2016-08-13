@@ -62,7 +62,7 @@ func Load(fileName string, minSize int) (i Image, fileCells int, err error) {
 // Save saves the image. If the shrink parameter is true, only the portion of
 // the image from offset 0 to HERE will be saved.
 func (i Image) Save(fileName string, shrink bool) error {
-	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
+	f, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
