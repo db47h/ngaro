@@ -137,7 +137,7 @@
 // reference to the next definition of this label). For example, in the following
 // code:
 //
-//	:1	jump 1+	( not to be confused with the '1+' mnemonic. Here it means next occurence of :1 )
+//	:1	jump 1+	( not to be confused with the '1+' mnemonic. Here it means next occurrence of :1 )
 //	:2	jump 1-
 //	:1	jump 2+
 //	:2	jump 1-

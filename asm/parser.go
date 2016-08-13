@@ -182,7 +182,7 @@ func isIdentRune(ch rune, i int) bool {
 }
 
 // Parse does the parsing and compiling. Returns the compiled VM image as a Cell
-// slice and any error that occured. If not nil, the returned error can safely
+// slice and any error that occurred. If not nil, the returned error can safely
 // be cast to an ErrAsm value that will contain up to 10 entries.
 func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 	// state:
