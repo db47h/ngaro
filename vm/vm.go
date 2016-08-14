@@ -46,6 +46,7 @@ type Instance struct {
 	inH       map[Cell]InHandler
 	outH      map[Cell]OutHandler
 	waitH     map[Cell]WaitHandler
+	opHandler OpcodeHandler
 	imageFile string
 	shrink    bool
 	input     io.Reader
@@ -155,6 +156,23 @@ func BindOutHandler(port Cell, handler OutHandler) Option {
 func BindWaitHandler(port Cell, handler WaitHandler) Option {
 	return func(i *Instance) error {
 		i.waitH[port] = handler
+		return nil
+	}
+}
+
+// OpcodeHandler is the prototype for opcode handler functions. When an opcode
+// handler is called, the VM's PC points to the opcode. Opcode handlers must take
+// care of updating the VM's PC.
+type OpcodeHandler func(i *Instance, opcode Cell) error
+
+// BindOpcodeHandler binds the given function to handle custom opcodes (i.e.
+// opcodes with a negative value).
+//
+// When an opcode handler is called, the VM's PC points to the opcode. Opcode
+// handlers must take care of updating the VM's PC.
+func BindOpcodeHandler(handler OpcodeHandler) Option {
+	return func(i *Instance) error {
+		i.opHandler = handler
 		return nil
 	}
 }

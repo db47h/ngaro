@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
 )
 
@@ -237,6 +238,54 @@ func ExampleBindWaitHandler_async() {
 
 	if err = i.Run(); err != nil && err != io.EOF {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
+	}
+
+	// So, what's Fib(46)?
+	fmt.Println(i.Data())
+
+	// Output:
+	// [1836311903]
+}
+
+// Demonstrates how to use custom opcodes. This example defines a custom opcode
+// that pushes the n-th fibonacci number onto the stack.
+func ExampleBindOpcodeHandler() {
+	fib := func(v vm.Cell) vm.Cell {
+		var v0, v1 vm.Cell = 0, 1
+		for v > 1 {
+			v0, v1 = v1, v0+v1
+			v--
+		}
+		return v1
+	}
+
+	handler := func(i *vm.Instance, opcode vm.Cell) error {
+		switch opcode {
+		case -1:
+			i.Tos = fib(i.Tos)
+			i.PC++ // DO NOT FORGET !
+			return nil
+		default:
+			return fmt.Errorf("Unsupported opcode value %d", opcode)
+		}
+	}
+
+	img, err := asm.Assemble("test_fib_opcode", strings.NewReader(`
+		.opcode fib -1
+		46 fib
+		`))
+	if err != nil {
+		panic(err)
+	}
+
+	i, err := vm.New(img, "dummy", vm.BindOpcodeHandler(handler))
+	if err != nil {
+		panic(err)
+	}
+
+	err = i.Run()
+	if err != nil {
+		panic(err)
 	}
 
 	// So, what's Fib(46)?

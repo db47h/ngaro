@@ -102,8 +102,8 @@ var tests = [...]struct {
 	{"push", "82 push", nil, C{82}, -1},
 	{"pop", "82 push pop", C{82}, nil, -1},
 	{"loop", "3 :REPEAT dup push loop REPEAT", nil, C{3, 2, 1}, -1},
-	{"call", "sub .org 32 :sub 1 2", C{1, 2}, C{0}, -1},
-	{"return", "sub end .org 32 :sub -2 ; :end -1", C{-2, -1}, C{1}, -1},
+	{"call", "func .org 32 :func 1 2", C{1, 2}, C{0}, -1},
+	{"return", "func end .org 32 :func -2 ; :end -1", C{-2, -1}, C{1}, -1},
 	{"ZeroExit", `fallthrough return quit
 				  .org 32
 				  :fallthrough 0 1 0;
@@ -168,7 +168,7 @@ var fib = `
 	drop
 `
 
-var nFib = `
+var fibRec = `
 	( recursive fib )
 	fib
 	jump end
@@ -181,6 +181,41 @@ var nFib = `
 :end
 `
 
+var fibOpcode = `
+	.opcode fib	-1
+	fib
+`
+
+func fibFunc(v vm.Cell) vm.Cell {
+	var v0, v1 vm.Cell = 0, 1
+	for v > 1 {
+		v0, v1 = v1, v0+v1
+		v--
+	}
+	return v1
+}
+
+func fibHandler(i *vm.Instance, opcode vm.Cell) error {
+	switch opcode {
+	case -1:
+		i.Tos = fibFunc(i.Tos)
+		i.PC++ // DO NOT FORGET !
+		return nil
+	default:
+		return fmt.Errorf("Unsupported opcode value %d", opcode)
+	}
+}
+
+func Test_Fib_Opcode(t *testing.T) {
+	img, err := asm.Assemble("fib-opcode", strings.NewReader(fibOpcode))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := setup(img, C{30}, nil)
+	p.SetOptions(vm.BindOpcodeHandler(fibHandler))
+	check(t, "Fib-opcode", p, 0, C{832040}, nil)
+}
+
 func Test_Fib_AsmLoop(t *testing.T) {
 	img, err := asm.Assemble("fib-asm-loop", strings.NewReader(fib))
 	if err != nil {
@@ -191,7 +226,7 @@ func Test_Fib_AsmLoop(t *testing.T) {
 }
 
 func Test_Fib_AsmRecursive(t *testing.T) {
-	img, err := asm.Assemble("fib-asm-recursive", strings.NewReader(nFib))
+	img, err := asm.Assemble("fib-asm-recursive", strings.NewReader(fibRec))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,6 +246,21 @@ func Test_Fib_RetroLoop(t *testing.T) {
 	check(t, "Fib_RetroLoop", i, 0, C{832040}, nil)
 }
 
+func Benchmark_Fib_Opcode(b *testing.B) {
+	img, err := asm.Assemble("fib-opcode", strings.NewReader(fibOpcode))
+	if err != nil {
+		b.Fatal(err)
+	}
+	i := setup(img, C{}, nil)
+	i.SetOptions(vm.BindOpcodeHandler(fibHandler))
+	for c := 0; c < b.N; c++ {
+		i.PC = 0
+		i.Push(35)
+		i.Run()
+		i.Pop()
+	}
+}
+
 func Benchmark_Fib_AsmLoop(b *testing.B) {
 	img, err := asm.Assemble("fib-asm-loop", strings.NewReader(fib))
 	if err != nil {
@@ -226,7 +276,7 @@ func Benchmark_Fib_AsmLoop(b *testing.B) {
 }
 
 func Benchmark_Fib_AsmRecursive(b *testing.B) {
-	img, err := asm.Assemble("fib-asm-recursive", strings.NewReader(nFib))
+	img, err := asm.Assemble("fib-asm-recursive", strings.NewReader(fibRec))
 	if err != nil {
 		b.Fatal(err)
 	}

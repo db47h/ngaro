@@ -298,9 +298,17 @@ func (i *Instance) Run() (err error) {
 			}
 			i.PC++
 		default:
-			i.address[i.rsp] = i.rtos
-			i.rsp++
-			i.rtos, i.PC = Cell(i.PC), int(op)
+			if op >= 0 {
+				i.address[i.rsp] = i.rtos
+				i.rsp++
+				i.rtos, i.PC = Cell(i.PC), int(op)
+			} else if i.opHandler != nil {
+				// custom opcode
+				err = i.opHandler(i, op)
+				if err != nil {
+					return err
+				}
+			}
 		}
 		i.insCount++
 	}
