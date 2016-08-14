@@ -176,8 +176,8 @@ func (i *Instance) Wait(v, port Cell) error {
 				}
 				i.PushInput(f)
 			case -1: // open file
-				fd := i.openfile(i.Image.DecodeString(i.data[i.sp-1]), i.data[i.sp])
-				i.sp -= 2
+				fd := i.openfile(i.Image.DecodeString(i.data[i.sp-1]), i.Tos)
+				i.Drop2()
 				i.WaitReply(fd, 4)
 			case -2: // read byte
 				f := i.files[i.Pop()]
@@ -188,8 +188,8 @@ func (i *Instance) Wait(v, port Cell) error {
 			case -3: // write byte
 				var l int
 				b[0] = byte(i.data[i.sp-1])
-				f := i.files[i.data[i.sp]]
-				i.sp -= 2
+				f := i.files[i.Tos]
+				i.Drop2()
 				if f != nil {
 					l, _ = f.Write(b[:])
 				}
@@ -213,8 +213,8 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.WaitReply(Cell(p), 4)
 			case -6: // seek
 				var p int64
-				o, f := i.data[i.sp-1], i.files[i.data[i.sp]]
-				i.sp -= 2
+				o, f := i.data[i.sp-1], i.files[i.Tos]
+				i.Drop2()
 				if f != nil {
 					p, _ = f.Seek(int64(o), 0)
 				}
@@ -247,10 +247,10 @@ func (i *Instance) Wait(v, port Cell) error {
 			// -2, -3, -4: canvas related
 			case -5:
 				// data depth
-				i.Ports[5] = Cell(i.sp + 1)
+				i.Ports[5] = Cell(i.sp - 1)
 			case -6:
 				// address depth
-				i.Ports[5] = Cell(i.rsp + 1)
+				i.Ports[5] = Cell(i.rsp - 1)
 			// -7: mouse enabled
 			case -8:
 				// unix time
@@ -261,8 +261,8 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.PC = len(i.Image) - 1 // will be incremented when returning
 			case -10:
 				// environment query
-				src, dst := i.data[i.sp], i.data[i.sp-1]
-				i.sp -= 2
+				src, dst := i.Tos, i.data[i.sp-1]
+				i.Drop2()
 				i.Image.EncodeString(dst, os.Getenv(i.Image.DecodeString(src)))
 				i.Ports[5] = 0
 			case -11:
@@ -304,8 +304,8 @@ func (i *Instance) Wait(v, port Cell) error {
 		if v := i.Ports[8]; v != 0 && i.output != nil {
 			switch i.Ports[8] {
 			case 1:
-				i.output.MoveCursor(int(i.data[i.sp]), int(i.data[i.sp-1]))
-				i.sp -= 2
+				i.output.MoveCursor(int(i.Tos), int(i.data[i.sp-1]))
+				i.Drop2()
 			case 2:
 				i.output.FgColor(int(i.Pop()))
 			case 3:

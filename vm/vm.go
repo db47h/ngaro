@@ -35,9 +35,11 @@ type Instance struct {
 	PC        int    // Program Counter (aka. Instruction Pointer)
 	Image     Image  // Memory image
 	Ports     []Cell // I/O ports
+	Tos       Cell   // cell on top of stack
 	fileCells int
 	sp        int
 	rsp       int
+	rtos      Cell
 	data      []Cell
 	address   []Cell
 	insCount  int64
@@ -179,9 +181,9 @@ func (i *Instance) SetOptions(opts ...Option) error {
 func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 	i := &Instance{
 		PC:        0,
-		sp:        -1,
-		rsp:       -1,
 		Image:     image,
+		sp:        1,
+		rsp:       1,
 		Ports:     make([]Cell, portCount),
 		inH:       make(map[Cell]InHandler),
 		outH:      make(map[Cell]OutHandler),
@@ -201,10 +203,10 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		return nil, err
 	}
 	if i.data == nil {
-		i.data = make([]Cell, 1024)
+		i.data = make([]Cell, dataSize)
 	}
 	if i.address == nil {
-		i.address = make([]Cell, 1024)
+		i.address = make([]Cell, addressSize)
 	}
 	return i, nil
 }
@@ -213,20 +215,22 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 // instance's stack, but re-slicing will not affect it. To add/remove values on
 // the data stack, use the Push and Pop functions.
 func (i *Instance) Data() []Cell {
-	if i.sp < len(i.data) {
-		return i.data[:i.sp+1]
+	if i.sp <= 1 {
+		return nil
 	}
-	return i.data
+	i.data[i.sp] = i.Tos
+	return i.data[2 : i.sp+1]
 }
 
 // Address returns the address stack. Note that value changes will be reflected
 // in the instance's stack, but re-slicing will not affect it. To add/remove
 // values on the address stack, use the Rpush and Rpop functions.
 func (i *Instance) Address() []Cell {
-	if i.rsp < len(i.address) {
-		return i.address[:i.rsp+1]
+	if i.rsp <= 1 {
+		return nil
 	}
-	return i.address
+	i.address[i.rsp] = i.rtos
+	return i.address[2 : i.rsp+1]
 }
 
 // InstructionCount returns the number of instructions executed so far.

@@ -154,59 +154,48 @@ func TestCore(t *testing.T) {
 	}
 }
 
-// TODO: make more...
+var fib = `
+	( loop fib -- n-n )
+	push 0 1
+	jump 1+
+:0	push			( save ctr )
+	dup push		( save fib(n-1) )
+	+
+	pop swap		( stack: fib(n-2) fib(n-1) )
+:1	pop
+	loop 0-
+	swap
+	drop
+`
 
-var fib = []vm.Cell{
-	vm.OpPush,
-	vm.OpLit, 0,
-	vm.OpLit, 1,
-	vm.OpPop,
-	vm.OpJump, 15, // junp to loop
-	vm.OpPush, // save count
-	vm.OpDup,
-	vm.OpPush, // save n-1
-	vm.OpAdd,  // n-2 + n-1
-	vm.OpPop,
-	vm.OpSwap, // stack: n-2 n-1
-	vm.OpPop,
-	vm.OpLoop, 8, // loop
-	vm.OpSwap,
-	vm.OpDrop,
-}
-
-var nFib = []vm.Cell{
-	vm.OpJump, 32,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	44, // call
-	vm.OpLit, -9,
-	vm.OpLit, 5,
-	vm.OpOut,
-	vm.OpLit, 0,
-	vm.OpLit, 0,
-	vm.OpOut,
-	vm.OpWait,
-	// entry
-	vm.OpDup,
-	vm.OpLit, 1,
-	vm.OpGtJump, 50,
-	vm.OpReturn,
-	vm.OpDec,
-	vm.OpDup,
-	44,
-	vm.OpSwap,
-	vm.OpDec,
-	44,
-	vm.OpAdd,
-	vm.OpReturn,
-}
+var nFib = `
+	( recursive fib )
+	fib
+	jump end
+.org 32
+:fib
+	dup	1 >jump 0+ ;
+:0	1- dup fib swap
+	1- fib
+	+ ;
+:end
+`
 
 func Test_Fib_AsmLoop(t *testing.T) {
-	p := setup(fib, C{30}, nil)
+	img, err := asm.Assemble("fib-asm-loop", strings.NewReader(fib))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := setup(img, C{30}, nil)
 	check(t, "Fib_AsmLoop", p, 0, C{832040}, nil)
 }
 
 func Test_Fib_AsmRecursive(t *testing.T) {
-	p := setup(nFib, C{30}, nil)
+	img, err := asm.Assemble("fib-asm-recursive", strings.NewReader(nFib))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := setup(img, C{30}, nil)
 	check(t, "Fib_AsmRecursive", p, 0, C{832040}, nil)
 }
 
@@ -223,11 +212,11 @@ func Test_Fib_RetroLoop(t *testing.T) {
 }
 
 func Benchmark_Fib_AsmLoop(b *testing.B) {
-	f := make(C, len(fib))
-	for i := range fib {
-		f[i] = vm.Cell(fib[i])
+	img, err := asm.Assemble("fib-asm-loop", strings.NewReader(fib))
+	if err != nil {
+		b.Fatal(err)
 	}
-	i := setup(f, C{35}, nil)
+	i := setup(img, C{35}, nil)
 	for c := 0; c < b.N; c++ {
 		i.PC = 0
 		i.Run()
@@ -237,11 +226,11 @@ func Benchmark_Fib_AsmLoop(b *testing.B) {
 }
 
 func Benchmark_Fib_AsmRecursive(b *testing.B) {
-	f := make(C, len(nFib))
-	for i := range nFib {
-		f[i] = vm.Cell(nFib[i])
+	img, err := asm.Assemble("fib-asm-recursive", strings.NewReader(nFib))
+	if err != nil {
+		b.Fatal(err)
 	}
-	i := setup(f, C{35}, nil)
+	i := setup(img, C{35}, nil)
 	for c := 0; c < b.N; c++ {
 		i.PC = 0
 		i.Run()
