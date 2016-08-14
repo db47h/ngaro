@@ -69,6 +69,7 @@ type parser struct {
 	cstName string
 	cstPos  scanner.Position
 	errs    ErrAsm
+	opcodes map[string]vm.Cell
 }
 
 func newParser() *parser {
@@ -76,6 +77,12 @@ func newParser() *parser {
 	p.labels = make(map[string]*label)
 	p.locCtr = make(map[int]int)
 	p.consts = make(map[string]labelSite)
+	p.opcodes = make(map[string]vm.Cell)
+	for i, v := range opcodes {
+		for _, n := range v {
+			p.opcodes[n] = vm.Cell(i)
+		}
+	}
 	return p
 }
 
@@ -258,6 +265,9 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 			case 3:
 				// .equ
 				p.consts[p.cstName] = labelSite{p.cstPos, v}
+			case 4:
+				// .opcode
+				p.opcodes[p.cstName] = vm.Cell(v)
 			case 0:
 				// implicit lit
 				p.write(vm.OpLit)
@@ -325,7 +335,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 					state = 2
 				case ".dat":
 					state = 1
-				case ".equ":
+				case ".equ", ".opcode":
 					t, ts, _ := p.scan()
 					if t != scanner.Ident {
 						p.error("Invalid constant identifier: " + p.s.TokenText())
@@ -334,17 +344,26 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 						break s
 					}
 					p.cstName = ts
-					if l, ok := p.labels[p.cstName]; ok {
-						p.error("Constant " + p.cstName + " already used as a label")
-						p.errs = append(p.errs, parseError(l.pos, "Previous use of "+p.cstName))
-						// just eat up next token and keep parsing
-						p.scan()
-						break s
+					if s != ".opcode" {
+						if l, ok := p.labels[p.cstName]; ok {
+							p.error("Constant " + p.cstName + " already used as a label")
+							p.errs = append(p.errs, parseError(l.pos, "Previous use of "+p.cstName))
+							// just eat up next token and keep parsing
+							p.scan()
+							break s
+						}
+						p.cstPos = p.s.Position
+						state = 3
+					} else {
+						state = 4
 					}
-					p.cstPos = p.s.Position
-					state = 3
 				default:
-					p.error("Unknown dot directive: " + s)
+					// implicit .dat
+					if c, ok := p.consts[s[1:]]; ok {
+						p.write(vm.Cell(c.address))
+					} else {
+						p.error("Unknown dot directive: " + s)
+					}
 				}
 			default:
 				if s == "(" {
@@ -359,7 +378,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 					state = 0
 					break s
 				}
-				if op, ok := opcodeIndex[s]; state == 0 && ok {
+				if op, ok := p.opcodes[s]; state == 0 && ok {
 					p.write(op)
 					switch op {
 					case vm.OpLit, vm.OpLoop, vm.OpJump, vm.OpGtJump, vm.OpLtJump, vm.OpNeJump, vm.OpEqJump:

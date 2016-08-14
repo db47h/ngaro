@@ -21,7 +21,7 @@ func ExampleAssemble() {
 		SOMECONST   ( const literal )
 		drop
 		drop
-		foo			( implicit call before address is 32 will be converted to proper push/jump )
+		foo			( implicit call )
 		pop
 		lit table	( address of table )
 		'x'			( char literal, compiles as lit 'x' )
@@ -30,6 +30,9 @@ func ExampleAssemble() {
 		
 :foo	42 bar drop ;
 :bar	1+ ;  ( several instructions on the same line )
+
+		.opcode sqrt -1	( test custom opcode )
+		sqrt			( should compile like .dat -1 )
 		
 :table	( data structure )
 		.dat -100		( will appear in the disassembly as "call -100" )
@@ -58,12 +61,14 @@ func ExampleAssemble() {
 	//    3	42
 	//    5	drop
 	//    6	drop
-	//    7	11
-	//    9	push
-	//   10	jump 32
-	//   12	pop
-	//   13	39
-	//   15	120
+	//    7	call 32
+	//    8	pop
+	//    9	40
+	//   11	120
+	//   13	nop
+	//   14	nop
+	//   15	nop
+	//   16	nop
 	//   17	nop
 	//   18	nop
 	//   19	nop
@@ -85,12 +90,13 @@ func ExampleAssemble() {
 	//   36	;
 	//   37	1+
 	//   38	;
-	//   39	call -100
-	//   40	call 438
-	//   41	call 39
-	//   42	call 8243
-	//   43	call 42
-	//   44	call 32
+	//   39	call -1
+	//   40	call -100
+	//   41	call 438
+	//   42	call 39
+	//   43	call 8243
+	//   44	call 42
+	//   45	call 32
 }
 
 // Disassemble is pretty straightforward. Here we Disassemble a hand crafted

@@ -23,46 +23,38 @@ import (
 	"github.com/db47h/ngaro/vm"
 )
 
-var opcodes = [...]string{
-	"nop",
-	"lit",
-	"dup",
-	"drop",
-	"swap",
-	"push",
-	"pop",
-	"loop",
-	"jump",
-	";",
-	">jump",
-	"<jump",
-	"!jump",
-	"=jump",
-	"@",
-	"!",
-	"+",
-	"-",
-	"*",
-	"/mod",
-	"and",
-	"or",
-	"xor",
-	"<<",
-	">>",
-	"0;",
-	"1+",
-	"1-",
-	"in",
-	"out",
-	"wait",
-}
-
-var opcodeIndex = make(map[string]vm.Cell)
-
-func init() {
-	for i, v := range opcodes {
-		opcodeIndex[v] = vm.Cell(i)
-	}
+var opcodes = [...][]string{
+	{"nop"},
+	{"lit"},
+	{"dup"},
+	{"drop"},
+	{"swap"},
+	{"push"},
+	{"pop"},
+	{"loop"},
+	{"jump", "jmp"},
+	{";", "ret"},
+	{">jump", "jgt"},
+	{"<jump", "jlt"},
+	{"!jump", "jne"},
+	{"=jump", "jeq"},
+	{"@"},
+	{"!"},
+	{"+", "add"},
+	{"-", "sub"},
+	{"*", "mul"},
+	{"/mod"},
+	{"and"},
+	{"or"},
+	{"xor"},
+	{"<<", "shl"},
+	{">>", "asr"},
+	{"0;", "0ret"},
+	{"1+", "inc"},
+	{"1-", "dec"},
+	{"in"},
+	{"out"},
+	{"wait"},
 }
 
 // Assemble compiles assembly read from the supplied io.Reader and returns the
@@ -90,7 +82,7 @@ func Disassemble(i []vm.Cell, pc int, w io.Writer) (next int) {
 		io.WriteString(w, "call ")
 		io.WriteString(w, strconv.Itoa(int(op)))
 	} else if op != vm.OpLit {
-		io.WriteString(w, opcodes[op])
+		io.WriteString(w, opcodes[op][0])
 	}
 	pc++
 	switch op {

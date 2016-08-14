@@ -23,39 +23,39 @@
 //	Instructions with a check mark in the "arg" column expect an argument in the cell
 //	following them.
 //
-//	opcode	asm	arg	stack	description
-//	------	---	---	-----	------------------------------------------------------------------------
-//	0	nop			no-op
-//	1	lit	✓	-n	place next value in next cell on TOS
-//	2	dup		n-nn	duplicate TOS
-//	3	drop		n-	drop TOS
-//	4	swap		xy-yx	swap TOS and NOS
-//	5	push		n-	push TOS to address stack
-//	6	pop		-n	pop value on top of address stack and place it on TOS
-//	7	loop	✓	n-?	decrement TOS. If >0 jump to address in next cell, else drop TOS and do nothing
-//	8	jump	✓		jump to address in next cell
-//	9	;			return: pop address from address stack, add 1 and jump to it.
-//	10	>jump	✓	xy-	jump to address in next cell if NOS > TOS
-//	11	<jump	✓	xy-	jump to address in next cell if NOS < TOS
-//	12	!jump	✓	xy-	jump to address in next cell if NOS != TOS
-//	13	=jump	✓	xy-	jump to address in next cell if NOS == TOS
-//	14	@		a-n	fetch: get the value at the address on TOS and place it on TOS.
-//	15	!		na-	store: store the value in NOS at address in TOS
-//	16	+		xy-z	add NOS to TOS and place result on TOS
-//	17	-		xy-z	subtract NOS from TOS and place result on TOS
-//	18	*		xy-z	multiply NOS with TOS and place result on TOS
-//	19	/mod		xy-rq	divide TOS by NOS and place remainder in NOS, quotient in TOS
-//	20	and		xy-z	do a logical and of NOS and TOS and place result on TOS
-//	21	or		xy-z	do a logical or of NOS and TOS and place result on TOS
-//	22	xor		xy-z	do a logical xor of NOS and TOS and place result on TOS
-//	23	<<		xy-z	do a logical left shift of NOS by TOS and place result on TOS
-//	24	>>		xy-z	do an arithmetic right shift of NOS by TOS and place result on TOS
-//	25	0;		n-?	ZeroExit: if TOS is 0, drop it and do a return, else do nothing
-//	26	1+		n-n	increment tos
-//	27	1-		n-n	decrement tos
-//	28	in		p-n	I/O in (see Ngaro VM spec)
-//	29	out		np-	I/O out (see Ngaro VM spec)
-//	30	wait		?-	I/O wait (see Ngaro VM spec)
+//	opcode	asm	alias	arg	stack	description
+//	------	---	-----	---	-----	------------------------------------------------------------------------
+//	0	nop				no-op
+//	1	lit		✓	-n	push the value in the following memory location to the data stack.
+//	2	dup			n-nn	duplicate TOS
+//	3	drop			n-	drop TOS
+//	4	swap			xy-yx	swap TOS and NOS
+//	5	push			n-	push TOS to address stack
+//	6	pop			-n	pop value on top of address stack and place it on TOS
+//	7	loop		✓	n-?	decrement TOS. If >0 jump to address in next cell, else drop TOS and do nothing
+//	8	jump	jmp	✓		jump to address in next cell
+//	9	;	ret			return: pop address from address stack, add 1 and jump to it.
+//	10	>jump	jgt	✓	xy-	jump to address in next cell if NOS > TOS
+//	11	<jump	jlt	✓	xy-	jump to address in next cell if NOS < TOS
+//	12	!jump	jne	✓	xy-	jump to address in next cell if NOS != TOS
+//	13	=jump	jge	✓	xy-	jump to address in next cell if NOS == TOS
+//	14	@			a-n	fetch: get the value at the address on TOS and place it on TOS.
+//	15	!			na-	store: store the value in NOS at address in TOS
+//	16	+	add		xy-z	add NOS to TOS and place result on TOS
+//	17	-	sub		xy-z	subtract NOS from TOS and place result on TOS
+//	18	*	mul		xy-z	multiply NOS with TOS and place result on TOS
+//	19	/mod	div		xy-rq	divide TOS by NOS and place remainder in NOS, quotient in TOS
+//	20	and			xy-z	do a logical and of NOS and TOS and place result on TOS
+//	21	or			xy-z	do a logical or of NOS and TOS and place result on TOS
+//	22	xor			xy-z	do a logical xor of NOS and TOS and place result on TOS
+//	23	<<	shl		xy-z	do a logical left shift of NOS by TOS and place result on TOS
+//	24	>>	asr		xy-z	do an arithmetic right shift of NOS by TOS and place result on TOS
+//	25	0;	0ret		n-?	ZeroExit: if TOS is 0, drop it and do a return, else do nothing
+//	26	1+	inc		n-n	increment tos
+//	27	1-	dec		n-n	decrement tos
+//	28	in			p-n	I/O in (see Ngaro VM spec)
+//	29	out			np-	I/O out (see Ngaro VM spec)
+//	30	wait			?-	I/O wait (see Ngaro VM spec)
 //
 // Comments:
 //
@@ -166,9 +166,9 @@
 //
 // The assembler supports the following directives:
 //
-//	.equ <IDENTIFIER> <value>
+//	.equ <identifier> <value>
 //
-// defines a constant value. <IDENTIFIER> can be any valid identifier (any
+// defines a constant value. <identifier> can be any valid identifier (any
 // combination of letters, symbols, digits and punctuation). The value must be
 // an integer value, named constant or character literal. Constants must be defined
 // before being used. Constants can be redefined, the compiler will always use the
@@ -189,4 +189,35 @@
 //		.dat 'B'
 //
 // The cells at addresses table+0 and table+1 will contain 65 and 66 respectively.
+//
+//	.opcode <identifier> <value>
+//
+// defines a custom opcode. <identifier> can be any valid identifier (any
+// combination of letters, symbols, digits and punctuation). The value must be
+// an integer value, named constant or character literal. Custom opcodes must be
+// defined before being used. They can be redefined, the compiler will always
+// use the last assigned value. Default opcodes can also be redefined (think
+// override) with this directive, it should therefore be used with caution.
+//
+// For example, suppose that we have a VM implementation that maps opcode -42 to
+// a function that computes the square root of the number on top of the data
+// stack:
+//
+//	.opcode sqrt -42
+//
+//	lit 49
+//	sqrt		( this compiles as .dat -42 )
+// 	7 !jump error
+//
+// Note that there is no mechanism to tell the assdembler that a given custom
+// opcode expects an argument from the next memory location (like lit or jump).
+// Should you need to implement this type of opcode, constant and integer
+// arguments would have to be prefixed with a .dat directive. For example, a
+// compare instruction would look like:
+//
+//	.opcode cmp -1		( compares TOS with value in next memory location )
+//
+//	cmp 0		( Wrong: would compile as ".dat -1 lit 0" )
+//	cmp .dat 0	( Correct: will compile as ".dat -1 0" )
+//
 package asm
