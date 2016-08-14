@@ -366,13 +366,6 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 						state = 1
 					}
 				} else {
-					// handle the case of implicit call at pc <= 30
-					if state == 0 && p.pc < 31 {
-						p.write(vm.OpLit)
-						p.write(vm.Cell(p.pc + 3))
-						p.write(vm.OpPush)
-						p.write(vm.OpJump)
-					}
 					p.makeLabelRef(s)
 					p.write(0)
 					state = 0
