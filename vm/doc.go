@@ -67,7 +67,5 @@
 //
 // TODO:
 //	- asm: macro assembler?
-//	- build tests from ngarotest.py
-//	- move cmd/retro to the root of the package
-//	- symbolic image? i.e. generate images with symbol references.
+//	- asm: symbolic image? i.e. generate images with symbol references.
 package vm
