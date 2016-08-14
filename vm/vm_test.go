@@ -17,6 +17,7 @@
 package vm_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -46,7 +47,7 @@ func setup(code, stack, rstack C) *vm.Instance {
 	return i
 }
 
-func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
+func check(t *testing.T, testName string, i *vm.Instance, ip int, stack C, rstack C) {
 	err := i.Run()
 	if err != nil {
 		t.Errorf("%+v", err)
@@ -56,7 +57,7 @@ func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
 		ip = len(i.Image)
 	}
 	if ip != i.PC {
-		t.Errorf("%v", fmt.Errorf("Bad IP %d != %d", i.PC, ip))
+		t.Errorf("%v", fmt.Errorf("%s: Bad IP %d != %d", testName, i.PC, ip))
 	}
 	stk := i.Data()
 	diff := len(stk) != len(stack)
@@ -69,7 +70,7 @@ func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
 		}
 	}
 	if diff {
-		t.Errorf("%v", fmt.Errorf("Stack error: expected %d, got %d", stack, stk))
+		t.Errorf("%v", fmt.Errorf("%s: Stack error: expected %d, got %d", testName, stack, stk))
 	}
 	stk = i.Address()
 	diff = len(stk) != len(rstack)
@@ -82,51 +83,75 @@ func check(t *testing.T, i *vm.Instance, ip int, stack C, rstack C) {
 		}
 	}
 	if diff {
-		t.Errorf("%v", fmt.Errorf("Return stack error: expected %d, got %d", rstack, stk))
+		t.Errorf("%v", fmt.Errorf("%s: Return stack error: expected %d, got %d", testName, rstack, stk))
 	}
 }
 
-func TestLit(t *testing.T) {
-	as, _ := asm.Assemble("testLit", strings.NewReader("lit 25"))
-	p := setup(as, nil, nil)
-	check(t, p, 0, C{25}, nil)
+var tests = [...]struct {
+	name    string
+	code    string
+	data    []vm.Cell
+	address []vm.Cell
+	pc      int
+}{
+	{"nop", "nop", nil, nil, -1},
+	{"lit", "lit 25", C{25}, nil, -1},
+	{"dup", "1234 dup", C{1234, 1234}, nil, -1},
+	{"drop", "50 drop", nil, nil, -1},
+	{"swap", "50 60 swap", C{60, 50}, nil, -1},
+	{"push", "82 push", nil, C{82}, -1},
+	{"pop", "82 push pop", C{82}, nil, -1},
+	{"loop", "3 :REPEAT dup push loop REPEAT", nil, C{3, 2, 1}, -1},
+	{"call", "sub .org 32 :sub 1 2", C{1, 2}, C{0}, -1},
+	{"return", "sub end .org 32 :sub -2 ; :end -1", C{-2, -1}, C{1}, -1},
+	{"ZeroExit", `fallthrough return quit
+				  .org 32
+				  :fallthrough 0 1 0;
+				  :return     -1 0 0;
+				  :quit nop`, C{0, 1, -1, -1}, C{2}, -1},
+	{"jump", "1 2 jump OVER 3 4 5 :OVER 6 7", C{1, 2, 6, 7}, nil, -1},
+	{"<jump", "2 1 <jump END 12 1 2 <jump END 21 :END", C{12}, nil, -1},
+	{">jump", "1 2 >jump END 21 2 1 >jump END 12 :END", C{21}, nil, -1},
+	{"!jump", "1 1 !jump END 11 1 0 !jump END 10 :END", C{11}, nil, -1},
+	{"=jump", "1 0 =jump END 10 1 1 =jump END 11 :END", C{10}, nil, -1},
+	{"+", "2 3 +    2 -3 +", C{5, -1}, nil, -1},
+	{"-", "2 1 -   1 2 -   1 -2 -   -1 -2 -", C{1, -1, 3, 1}, nil, -1},
+	{"*", "0 5 *   1 5 *   5 5 *", C{0, 5, 25}, nil, -1},
+	{"/mod", "25 5 /mod  26 5 /mod", C{0, 5, 1, 5}, nil, -1},
+	{"1+", "-1 1+   0 1+    1 1+", C{0, 1, 2}, nil, -1},
+	{"1-", "-1 1-    0 1-   1 1-", C{-2, -1, 0}, nil, -1},
+	{"and", "0 0 and  0 1 and   1 0 and  1 1 and", C{0, 0, 0, 1}, nil, -1},
+	{"or", "0 0 or   0 1 or   1 0 or   1 1 or", C{0, 1, 1, 1}, nil, -1},
+	{"xor", "0 0 xor   0 1 xor   1 0 xor   1 1 xor   -1 3 xor", C{0, 1, 1, 0, -4}, nil, -1},
+	{"<<", "1 1 <<   2 1 <<   3 1 <<   0 2 <<   -1 2 <<  -3 4 <<", C{2, 4, 6, 0, -4, -48}, nil, -1},
+	{">>", "2 1 >>   4 1 >>   6 1 >>   0 2 >>   -4 2 >>   -48 4 >>", C{1, 2, 3, 0, -1, -3}, nil, -1},
+	{"@", "1234 drop   0 @   1 @", C{1, 1234}, nil, -1},
+	{"!", "42 lit foo 1+ ! :foo lit 0", C{42}, nil, -1},
+	{"io", "-1 5 out wait 5 in", C{9}, nil, -1},
 }
 
-func TestDup(t *testing.T) {
-	p := setup(C{2}, C{0, 42}, nil)
-	check(t, p, 0, C{0, 42, 42}, nil)
-}
-
-func TestDrop(t *testing.T) {
-	p := setup(C{3}, C{0, 42}, nil)
-	check(t, p, 0, C{0}, nil)
-}
-
-func TestSwap(t *testing.T) {
-	p := setup(C{4}, C{0, 42}, nil)
-	check(t, p, 0, C{42, 0}, nil)
-}
-
-func TestPush(t *testing.T) {
-	p := setup(C{5}, C{42}, nil)
-	check(t, p, 0, nil, C{42})
-}
-
-func TestPop(t *testing.T) {
-	p := setup(C{6}, nil, C{42})
-	check(t, p, 0, C{42}, nil)
-}
-
-func TestLoop(t *testing.T) {
-	p := setup(C{
-		7, 4, // 0: LOOP 4
-		1, 0, // 2: LIT 0
-		1, 1, // 4: LIT 1
-	}, C{43}, nil)
-	check(t, p, 0, C{42, 1}, nil)
-
-	p = setup(C{7, 4, 1, 0, 1, 1}, C{1}, nil)
-	check(t, p, 0, C{0, 1}, nil)
+func TestCore(t *testing.T) {
+	for _, test := range tests {
+		as, err := asm.Assemble(test.name, strings.NewReader(test.code))
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		p := setup(as, nil, nil)
+		check(t, test.name, p, test.pc, test.data, test.address)
+		if t.Failed() {
+			// disasm
+			var b bytes.Buffer
+			b.WriteString(test.name)
+			b.WriteString(":\n")
+			for pc := 0; pc < len(as); {
+				fmt.Fprintf(&b, "% 4d\t", pc)
+				pc = asm.Disassemble(as, pc, &b)
+				b.WriteByte('\n')
+			}
+			t.Log(b.String())
+		}
+	}
 }
 
 // TODO: make more...
@@ -177,12 +202,12 @@ var nFib = []vm.Cell{
 
 func Test_Fib_AsmLoop(t *testing.T) {
 	p := setup(fib, C{30}, nil)
-	check(t, p, 0, C{832040}, nil)
+	check(t, "Fib_AsmLoop", p, 0, C{832040}, nil)
 }
 
 func Test_Fib_AsmRecursive(t *testing.T) {
 	p := setup(nFib, C{30}, nil)
-	check(t, p, 0, C{832040}, nil)
+	check(t, "Fib_AsmRecursive", p, 0, C{832040}, nil)
 }
 
 func Test_Fib_RetroLoop(t *testing.T) {
@@ -194,7 +219,7 @@ func Test_Fib_RetroLoop(t *testing.T) {
 	for c := len(i.Address()); c > 0; c-- {
 		i.Rpop()
 	}
-	check(t, i, 0, C{832040}, nil)
+	check(t, "Fib_RetroLoop", i, 0, C{832040}, nil)
 }
 
 func Benchmark_Fib_AsmLoop(b *testing.B) {
