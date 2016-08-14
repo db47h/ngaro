@@ -64,46 +64,56 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 	}
 }
 
+func setupIO() (raw bool, tearDown func()) {
+	var err error
+	if *rawIO {
+		tearDown, err = setRawIO()
+		if err != nil {
+			return false, nil
+		}
+	}
+	return true, tearDown
+}
+
+func atExit(i *vm.Instance, err error) {
+	if err == nil {
+		return
+	}
+	if !*debug {
+		fmt.Fprintf(os.Stderr, "\n%v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "\n%+v\n", err)
+	if i != nil {
+		if i.PC < len(i.Image) {
+			fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Addr: %v\n", i.PC, i.Image[i.PC], i.Data(), i.Address())
+		} else {
+			fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nAddr:  %v\n", i.PC, i.Data(), i.Address())
+		}
+	}
+	os.Exit(1)
+}
+
 func main() {
 	// check exit condition
 	var err error
-	var proc *vm.Instance
+	var i *vm.Instance
 
 	stdout := bufio.NewWriter(os.Stdout)
 	output := vm.NewVT100Terminal(stdout, stdout.Flush, consoleSize(os.Stdout))
 
-	// catch and log errors
+	// flush output, catch and log errors
 	defer func() {
 		output.Flush()
-
-		if err == nil {
-			return
-		}
-		if !*debug {
-			fmt.Fprintf(os.Stderr, "\n%v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "\n%+v\n", err)
-		if proc != nil {
-			if proc.PC < len(proc.Image) {
-				fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Ret: %v\n", proc.PC, proc.Image[proc.PC], proc.Data(), proc.Address())
-			} else {
-				fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nRet:  %v\n", proc.PC, proc.Data(), proc.Address())
-			}
-		}
-		os.Exit(1)
+		atExit(i, err)
 	}()
 
 	flag.Parse()
 
 	// try to switch the output terminal to raw mode.
-	var rawtty bool
-	if *rawIO {
-		fn, e := setRawIO()
-		if e == nil {
-			rawtty = true
-			defer fn()
-		}
+	var rawtty, ioTearDownFn = setupIO()
+	if ioTearDownFn != nil {
+		defer ioTearDownFn()
 	}
 
 	// default options
@@ -143,15 +153,15 @@ func main() {
 	if *outFileName == "" {
 		outFileName = fileName
 	}
-	proc, err = vm.New(img, *outFileName, opts...)
+	i, err = vm.New(img, *outFileName, opts...)
 	if err != nil {
 		return
 	}
-	if err = proc.Run(); err == io.EOF {
+	if err = i.Run(); err == io.EOF {
 		err = nil
 	}
 	if *dump {
-		err = dumpVM(proc, fileCells, output)
+		err = dumpVM(i, fileCells, output)
 		if err != nil {
 			return
 		}
