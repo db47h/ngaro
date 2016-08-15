@@ -4,7 +4,7 @@
 # Ngaro Go
 
 ## <a name="pkg-overview">Overview</a>
-This is another Go implementation of the [Ngaro Virtual Machine](http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html).
+This is an embeddable Go implementation of the [Ngaro Virtual Machine](http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html).
 
 This repository contains the embeddable [virtual
 machine](https://godoc.org/github.com/db47h/ngaro/vm), a rudimentary
