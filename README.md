@@ -28,16 +28,16 @@ This implementation passes all tests from the retro-language test suite and
 its performance when running tests/core.rx is slightly better than with the
 reference implementations:
 
-	1.20s for this implementation, compiled with Go 1.7rc6.
+	1.17s for this implementation, compiled with Go 1.7rc6.
 	1.30s for the reference Go implementation, compiled with Go 1.7rc6
 	2.22s for the reference C implementation, compiled with gcc-5.4 -O3 -fomit-frame-pointer
 
 For all intents and purposes, the VM behaves according to the specification.
 With one exception: if you implement custom opcodes, be aware that for
 performance reasons, the PC (aka. Instruction Pointer) is not incremented in
-a single place; rather each opcode deals with the PC as needed. Users of
+a single place; rather each opcode deals with the PC as needed. Implementors of
 custom opcodes will need to take care of updating the PC accordingly. This
 should be of no concern to other users, even with custom I/O  handlers.
-Should you find that the VM does not behave according to the spec, please
+Should you find out that the VM does not behave according to the spec, please
 file a bug report.
 	

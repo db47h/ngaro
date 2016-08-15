@@ -4,26 +4,11 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/db47h/ngaro/internal/ngi"
 	"github.com/db47h/ngaro/vm"
 )
 
-type errWriter struct {
-	w   io.Writer
-	err error
-}
-
-func (w *errWriter) Write(p []byte) (n int, err error) {
-	if w.err != nil {
-		return 0, w.err
-	}
-	n, err = w.w.Write(p)
-	if err != nil {
-		w.err = err
-	}
-	return n, err
-}
-
-func (w *errWriter) dumpSlice(a []vm.Cell) error {
+func dumpSlice(w *ngi.ErrWriter, a []vm.Cell) error {
 	l := len(a) - 1
 	if l >= 0 {
 		for i := 0; i < l; i++ {
@@ -32,16 +17,16 @@ func (w *errWriter) dumpSlice(a []vm.Cell) error {
 		}
 		io.WriteString(w, strconv.Itoa(int(a[l])))
 	}
-	return w.err
+	return w.Err
 }
 
 // Dump dumps the virtual machine stacks and image to the specified io.Writer.
 func dumpVM(i *vm.Instance, size int, w io.Writer) error {
-	ew := &errWriter{w: w}
+	ew := ngi.NewErrWriter(w)
 	ew.Write([]byte{'\x1C'})
-	ew.dumpSlice(i.Data())
+	dumpSlice(ew, i.Data())
 	ew.Write([]byte{'\x1D'})
-	ew.dumpSlice(i.Address())
+	dumpSlice(ew, i.Address())
 	ew.Write([]byte{'\x1D'})
-	return ew.dumpSlice(i.Image[:size])
+	return dumpSlice(ew, i.Image[:size])
 }

@@ -1,0 +1,660 @@
+( Retro ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+( Copyright [c] 2008 - 2015, Charles Childers                                 )
+( Copyright [c] 2009 - 2010, Luke Parrish                                     )
+( Copyright [c] 2010,        Marc Simpson                                     )
+( Copyright [c] 2010,        Jay Skeer                                        )
+( Copyright [c] 2012,        Michal J Wallace                                 )
+( ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+
+
+( Kernel Begins ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+IMAGE-SIZE  constant CORE
+CORE 0000 + constant HEAP
+
+( Initial Variables ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+mark variable last    ( Pointer to the most recent dictionary header          )
+HEAP variable: heap   ( Starting address of the data/code heap                )
+variable compiler     ( Is the compiler on or off?                            )
+variable which        ( Pointer to dictionary header of the most recently     )
+                      ( looked up word                                        )
+
+6 elements memory fb fw fh cw ch
+
+label: copytag   "Retro" $,
+label: version   "11.7.1" $,
+label: build     "2015.11.17" $,
+label: okmsg     "ok  " $,
+
+t: ,           ( n-  ) heap # @, dup, 1+, push, !, pop, heap # !, ;
+t: withClass   ( ac- ) 1-, push, ;
+t: .word       (  a- ) compiler # @, 0 # !if , ; then jump: withClass
+t: .macro      (  a- ) jump: withClass
+t: .data       (  a- ) compiler # @, 0; drop, 1 # , , ;
+t: .primitive  (  a- )
+    dup, @, 0 # =if compiler # @, -1 # =if 2 # +, @, then then jump: .word
+
+' .word      'WORD  setClass
+' .macro     'MACRO setClass
+' .data      'DATA  setClass
+' .primitive 'PRIM  setClass
+
+' , word: ,
+"( n- ) Place TOS **here** and increment **heap** by 1 " :doc
+
+' withClass    word: withClass
+"( ac- ) Execute a function via the specified class handler" :doc
+
+' .word          word: .word
+"( a- ) Class for normal functions" :doc
+
+' .macro       word: .macro
+"( a- ) Class for immediate functions" :doc
+
+' .data          word: .data
+"( a- ) Class for data (variables, literals, etc) " :doc
+
+' .primitive   word: .primitive
+"( a- ) Class for functions corresponding to VM opcodes; used for simple optimizations" :doc
+
+( Primitives ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+p: dup dup dup, ;
+"( n-nn ) Duplicate TOS" :doc
+
+p: 1+  1+  1+, ;
+"( n-n ) Increment TOS by 1 " :doc
+
+p: 1-  1-  1-, ;
+"( n-n ) Decrement TOS by 1 " :doc
+
+p: swap swap swap, ;
+"( xy-yx ) Exchange positions of TOS and NOS" :doc
+
+p: drop drop drop, ;
+"( n- ) Drop TOS from the stack" :doc
+
+p: and and and, ;
+"( xy-n ) Bitwise AND" :doc
+
+p: or or or, ;
+"( xy-n ) Bitwise OR" :doc
+
+p: xor xor xor, ;
+"( xy-n ) Bitwise XOR" :doc
+
+p: @ @ @, ;
+"( a-n ) Fetch a value from a memory location" :doc
+ 
+p: ! ! !, ;
+"( na- ) Store a value to a memory location" :doc
+
+p: + + +, ;
+"( xy-n ) Add two values (x+y)" :doc
+
+p: - - -, ;
+"( xy-n ) Subtract two values (x-y)" :doc
+
+p: * * *, ;
+"( xy-n ) Multiply two values (x*y)" :doc
+
+p: /mod /mod /mod, ;
+"( xy-rq ) Divide and Remainder. This performs symmetric division" :doc
+
+p: << << <<, ;
+"( xy-n ) Shift bits left (x<<y)" :doc
+
+p: >> >> >>, ;
+"( xy-n ) Shift bits right (x>>y)" :doc
+
+p: out out out, ;
+"( np- ) Write a value to an I/O port" :doc
+
+p: in in in, ;
+"( p-n ) Read a value from an I/O port" :doc
+
+w: wait wait 0 # 0 # out, wait, ;
+"( - ) Wait for an I/O event" :doc
+
+w: over over push, dup, pop, swap, ;
+"( xy-xyx ) Place a copy of NOS over TOS" :doc
+
+w: not not -1 # xor, ;
+"( x-y ) Same as -1 xor; invert TOS and subtract 1" :doc
+
+w: on on -1 # swap, !, ;
+"( a- ) Set a variable to -1 (true)" :doc
+
+w: off off 0 # swap, !, ;
+"( a- ) Set a variable to  0 (false)" :doc
+
+w: / / /mod, swap, drop, ;
+"( xy-q ) Divide two numbers (x/y)" :doc
+
+w: mod mod /mod, drop, ;
+"( xy-r ) Modulus of two numbers (x%y)" :doc
+
+w: negate negate -1 # *, ;
+"( x-y ) Invert sign of TOS" :doc
+
+w: do do 1-, push, ;
+"( a- ) Call a function by address" :doc
+
+w: @+ @+ dup, 1+, swap, @, ;
+"( a-ac ) Fetch a value from an address, return the next address and the value" :doc
+
+w: !+ !+ dup, 1+, push, !, pop, ;
+"( ca-a ) Store a value to an address, return next address" :doc
+
+( Core Compiler ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+w: here here heap # @, ;
+"( -a ) Next free address in **heap**" :doc
+
+m: ;; ;; 9 # , ;
+"( - ) Compile an exit into a function, but do not stop compilation" :doc
+
+m: ; t-;  ;; ;; compiler # off ;
+"( - ) Compile an exit into a function and stop the compiler" :doc
+
+i: ($,) repeat @+ 0; , again ;
+( [ a-a ] internal helper function for inlining strings )
+
+i: $ ($,) drop, 0 # , ;
+( [ a- ] internal helper function for inlining strings )
+
+m: push push 5 # , ;
+"( n- ) Push a value to the address stack" :doc
+
+m: pop  pop  6 # , ;
+"( -n ) Pop a value off the address stack" :doc
+
+( Conditionals and Flow Control ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+m: 0; t-0; 25 # , ;
+"( n-n || n- ) If TOS is not zero, do nothing. If TOS is zero, drop TOS and exit the function" :doc
+
+m: repeat t-repeat here ;
+"( R: - C: -a ) Start an unconditional loop" :doc
+
+m: again t-again  8 # , , ;
+"( R: -  C: a- ) Jump to the code following the most recent **repeat**" :doc
+
+( Console Output ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+-1 variable: update
+
+w: redraw redraw update # @, 0; drop, 0 # 3 # out, ;
+"( - ) Update the display. Can be disabled temporarily by **update**" :doc
+
+w: putc putc 0; 1 # 2 # out, wait redraw ;
+"( c- ) Display a character" :doc
+
+w: cr cr 10 # putc ;
+"( - ) Display a newline character" :doc
+
+i: (puts) repeat @+ 0; putc again ;
+( [ a-a ] helper for **puts** )
+
+w: <puts> <puts> (puts) drop, ;
+"( $- ) Helper; default way to display strings" :doc
+
+w: puts puts <puts> ;
+"( $- ) Display a string" :doc
+
+( Console Input ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+variable  break                       ( Holds the delimiter for 'accept'   )
+
+-1 variable: remapping                   ( Allow extended whitespace?         )
+
+-1 variable: eatLeading?                 ( Eat leading delimiters?            )
+
+-1 variable: tabAsWhitespace
+
+ 0 variable: keymap
+keymap data: keymap
+"( -a ) Variable, determines whether or not to use the keymap" :doc
+
+ 9 variable: keymap:PREFIX
+keymap:PREFIX data: keymap:PREFIX
+"( -a ) Variable, holds prefix for triggering keymap lookups. Default is #9 (tab)" :doc
+
+ 0 variable: keymap:TABLE
+256 tallot
+keymap:TABLE data: keymap:TABLE
+"( -a ) Variable, jump table for keymap handlers" :doc
+
+
+w: STRING-LENGTH STRING-LENGTH  256 # ;
+"( -n ) Return the max length for a string" :doc
+
+w: STRING-BUFFERS STRING-BUFFERS 12 # ;
+"( -n ) Return number of temporary string buffers" :doc
+
+w: tib tib memory # @, STRING-LENGTH - ;
+"(  -a ) Returns address of text input buffer" :doc
+
+w: remapKeys remapKeys ;
+"( c-c ) Remap one ASCII value to another" :doc
+
+w: remap:whitespace remap:whitespace
+   dup,  127 # =if drop,  8 # then
+   dup,   13 # =if drop, 10 # then
+   remapping # @, 0; drop,
+   dup,   10 # =if drop, 32 # then
+   tabAsWhitespace # @, 0; drop, dup, 9 # =if drop, 32 # then ;
+"( c-c ) helper for remapping whitespace" :doc
+
+w: getc:unfiltered getc:unfiltered 1 # 1 # out, wait 1 # in, ;
+"( -c ) Read a keypress and return the ASCII value on the stack" :doc
+
+w: getc:with/remap getc:with/remap
+  repeat getc:unfiltered remapKeys dup, 0 # !if remap:whitespace ; then drop, again ;
+"( -c ) Read a keypress and return the ASCII value on the stack.\nThis differs from **getc:unfiltered** in that the key value is processed\nby **remapKeys** before being returned.\nUnlike **getc** it does not attempt to support the keymaps." :doc
+
+w: keymap:handler keymap:handler
+  ;
+"( c-c ) handle keymaps" :doc
+
+w: getc getc
+  repeat getc:unfiltered keymap:handler remapKeys dup, 0 # !if remap:whitespace ; then drop, again ;
+"( -c ) Read a keypress and return the ASCII value on the stack.\nBoth remapping and keymaps are handled by this." :doc
+
+w: (echo) (echo) dup, putc ;
+
+i: putc? dup, 8 # =if drop, break # @, ; then (echo) ;
+( [ c-c ] helper to display characters and backspaces properly )
+
+i: eat    ( a-a )
+   eatLeading? # @, 0; drop,
+   repeat getc putc? dup, break # @, !if swap, !+ ; then drop, again ;
+( [ a-a ] helper function to eat leading delimiters )
+
+i: guard? dup, 1+, tib <if drop, tib ; then 8 # putc ;
+( [ n-n ] helper to prevent backspacing to before start of buffer )
+
+i: (accept)
+   repeat
+     getc
+     dup, 8 # =if drop, 1-, guard? jump: (accept) then
+     (echo)
+     dup, break # @, =if drop, ; then
+     swap, !+
+   again ;
+( [ a-a ] internal implementation of **accept** )
+
+w: accept accept break # !, tib eat (accept) 0 # swap, !+ drop, ;
+"( c- ) Read a string, ending with the specified character. The string is returned in **tib**" :doc
+
+( Colon Compiler ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+-1 variable: vector
+
+w: d->class d->class  1+, ;
+"( a-a ) Given a dictionary header, return the address of the class handler. Use **@** to get the actual pointer." :doc
+
+w: d->xt d->xt 1+, 1+, ;
+"( a-a ) Given a dictionary header, return the address of the function start (*xt*). Use **@** to get the actual pointer." :doc
+
+w: d->doc d->doc 3 # +, ;
+"( a-a ) Given a dictionary header, return the address of a documentation string. Use **@** to get the actual pointer." :doc
+
+w: d->name d->name  4 # +, ;
+"( a-a ) Given a dictionary header, return the address of the name. This is the actual start of the  name." :doc
+
+w: header header  push, here        ( Entry Start      )
+                     last # @, ,       ( Link to previous )
+                     last # !,         ( Set as newest    )
+                     ' .data # ,       ( Class = .data    )
+                     here 0 # ,        ( XT               )
+                     0 # ,             ( Pointer to docstr)
+                     pop, $            ( Name             )
+                     here swap, !, ;   ( Patch XT to HERE )
+"( $- ) Given a name, create a new header with a class of **.data**" :doc
+
+w: create create 32 # accept tib header ;
+"( ``- ) Parse for a name and call **header**" :doc
+
+m: [[ [[ compiler # off ;
+"( - ) Turn compiler off" :doc
+
+w: ]] ]] compiler # on ;
+"( - ) Turn compiler on" :doc
+
+i: vector?  vector # @, 0; drop, 0 # , 0 # , ;
+
+w: : :   create ' .word # last # @, d->class !, ]] vector? ;
+"( ``- ) Calls **create**, changes class to **.word**, and turns **compiler** on." :doc
+
+m: ( t-(  ') # accept ;
+"( ``- ) Parse for ) and ignore everything it reads" :doc
+
+( Quotes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+
+( reference diagram:                                           )
+(                                                              )
+(  step       generated code.                                  )
+(  -------    ----------------                                 )
+(  [          <quote> 0000                                     )
+(  [ 5        <quote> 0000 <lit> 0005                          )
+(  [ 5 ]      <quote> ADDR <lit> 0005 <ret>                    )
+(                                                              )
+( ADDR will be same as "here" immediately after compilation    )
+(                                                              )
+( <quote> is the xt for "quote" - 711 as of retro 11.5 . This  )
+( changes with kernel/meta.rx but the number should always be  )
+( the same as both:  ' quote     and:  d' quote @d->xt         )
+
+w: quote quote ( -a  ) ( -- runtime -------------------------------- )
+  pop, 1+        (   -a  | grab the return address, add 1, and )
+  dup,           (  a-aa | dup, giving two pointers to ADDR    )
+  @,             ( aa-aA | dereference one for actual target   )
+  1-,            ( aa-aA | subtract 1 because ip++ in ngaro vm )
+  push,          ( aA-a  | push result to do a calculated jump )
+  1+, ;          (  a-a  | point to start of code, jump to end )
+"( -a ) Helper function for quotations" :doc
+
+m: [ [ ( -a )      ( -- compile-time---------------------------- )
+  ' quote # ,    (   -   | compile a call to quote             )
+  here           (   -a  | remember where to put ADDR          )
+  0 # ,          (  a-a  | leave a cell to hold it later       )
+  compiler # @,  (  a-af | store current compiler state        )
+  compiler # on  ( af-af | turn the compiler on                )
+  ;
+"( - ) Start a quote (code block)" :doc
+
+m: ] ] ( af- ) ( a = placeholder for quote jump, f = old compile state  )
+   ;;            ( af-af | compile a return from quoted code   )
+   compiler # !, ( af-a  | restore compiler state              )
+   here          (  a-aA | now we know what ADDR should be     )
+   over !,       ( aA-a  | so go replace the 00                )
+   compiler # @, (  a-af | recall current compile state        )
+   0 # =if       ( af-a  | are we outside of the compiler?     )
+                 ( -- runtime -------------------------------- )
+     1+, ;       (  a-a  | for interactive, keep ptr to start  )
+                 ( -- compile-time---------------------------- )
+   then drop, ;  (  a-   | inside compile mode, just discard.  )
+                 (       | the call to 'quote will restore it  )
+                 (       | when the containing function runs   )
+"( -a ) End a quote (code block)" :doc
+
+( Combinators ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+i: empty ;
+( [ - ] internal helper corresponding to an empty quote )
+
+w: if if push, swap, pop, swap, 0 # !if drop, do ; then swap, drop, do ;
+"( fqq- ) Execute first quote if flag is true, second  if false" :doc
+
+w: ifTrue ifTrue   ' empty # if ;
+"( fq- ) Execute quote if flag is true" :doc
+
+w: ifFalse ifFalse ' empty # swap, if ;
+"( fq- ) Execute quote if flag is false" :doc
+
+w: dip dip swap, push, do pop, ;
+"( nq-n ) Call a quote while temporarily hiding the top item on the stack" :doc
+
+w: sip sip over ' do # dip ;
+"( nq-n ) Call a quote with an item on the stack, restoring that item after the quote returns" :doc
+
+( Conditionals ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+i: false (  -n  )  0 # ;
+( [ -f ] helper, returns 0 for false )
+
+i: true  (  -n  ) -1 # ;
+( [ -f ] helper, returns -1 for true )
+
+w: =  =  ( xy-f  ) =if jump: true  then jump: false
+"( xy-f ) Compare two values for equality. Use **==** instead" :doc
+
+w: == == = ;
+"( xy-f ) Compare two values for equality." :doc
+
+w: <> <>  ( xy-f  ) !if jump: true  then jump: false
+"( xy-f ) Compare two values for inequality. Use **!=** instead." :doc
+
+w: != != <> ;
+"( xy-f ) Compare two values for inequality." :doc
+
+w: >= >=  ( xy-f  ) >if jump: true  then jump: false
+"( xy-f ) Compare for greater than or equal to" :doc
+
+w: <= <=  ( xy-f  ) <if jump: true  then jump: false
+"( xy-f ) Compare for less than or equal to" :doc
+
+w: < <    ( xy-f  ) >if jump: false then jump: true
+"( xy-f ) Compare two values for less than" :doc
+
+w: > >    ( xy-f  ) <if jump: false then jump: true
+"( xy-f ) Compare two values for greater than" :doc
+
+( Strings ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+w: compare compare
+   repeat
+     dup, @, push, 1+, swap,
+     dup, @, push, 1+, pop, dup, pop,
+     !if drop, drop, dup, xor, ; then
+   0 # 12 m, m,
+   drop, drop, -1 # ;
+"( $$-f ) Compare two strings for equality" :doc
+
+i: count repeat @+ 0; drop, again ;
+( [ a-a ] internal helper for getting string length )
+
+w: getLength getLength   ( a-n ) dup, count 1-, swap, -, ;
+"( a-n ) Return the length of a string" :doc
+
+w: withLength withLength  ( a-an ) dup, getLength ;
+"( a-an ) Same as **dup getLength**" :doc
+
+w: string string      ( -   ) pop, count 1-, push, ;
+"( - ) helper for strings" :doc
+
+w: keepString keepString  ( a-a ) ' string # , here swap, $ ;
+"( a-a ) Move the string to a permanent location" :doc
+
+w: :devector :devector ( a-  ) 0 # swap, !+ 0 # swap !, ;
+"( a- ) Restore a function to its original state" :doc
+
+w: :is :is      ( aa- ) 8 # swap, !+ !, ;
+"( aa- ) Alter a function to point to a new function" :doc
+
+w: atib atib memory # @, STRING-LENGTH 2 # * - ;
+"(  -a ) Returns address of alternate text input buffer" :doc
+
+w: " t-" ' atib # ' tib # :is '" # accept ' tib # :devector atib ;
+"( ``-$ ) temporary function to create strings until __`` is defined" :doc
+
+i: pass ;
+w: hush hush ( - ) ' pass # ' (echo) # :is ; "disable input echo" :doc
+w: echo echo ( - ) ' (echo) # :devector ;    "enable inout echo" :doc
+
+
+( Numbers [Parsing & Display] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+4 elements #value num negate? flag
+
+10 variable: base
+
+label: numbers "0123456789ABCDEF" $,
+
+w: numbers nums     ( -a ) numbers # ;
+"(  -a ) Function returning address of string containing all valid numeric characters" :doc
+
+i: @base    ( -n ) base # @, ;
+( [ -n ] helper function, returns value stored in **base** )
+
+i: (digits) nums +, @, over =if num # on then ;
+( NEEDS-DESCRIPTION )
+
+i: digits   1-, repeat dup, push, (digits) pop, 0; 1-, again ;
+( NEEDS-DESCRIPTION )
+
+i: valid?   @base dup, 16 # <if digits ; then drop, ;
+( NEEDS-DESCRIPTION )
+
+i: digit?   num # off valid? drop, num # @, ;
+( NEEDS-DESCRIPTION )
+
+i: toDigit  ( c-n ) '0 # -, @base 16 # =if dup, 16 # >if 7 # -, then then ;
+( NEEDS-DESCRIPTION )
+
+i: isNegative? ( a-a )
+   dup, @, '- # =if negate? # on 1+, ; then 1 # negate? # !, ;
+( NEEDS-DESCRIPTION )
+
+i: (convert)
+   repeat
+     dup, @, 0; toDigit #value # @, @base *, +, #value # !, 1+,
+   again ;
+( NEEDS-DESCRIPTION )
+
+w: toNumber toNumber ( $-n )
+   isNegative? 0 # #value # !, (convert) drop, #value # @, negate? # @, *, ;
+"( $-n ) Convert a string to a number" :doc
+
+i: (isnumber)
+   repeat dup, @, 0; digit? flag # @, and, flag # !, 1+, again ;
+( NEEDS-DESCRIPTION )
+
+w: isNumber? isNumber? ( $-f ) isNegative? flag # on (isnumber) drop, flag # @, ;
+"( $-f ) See if a string is a valid number in the current **base**" :doc
+
+( Startup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+w: boot boot         (  -  )
+   copytag # puts 32 # putc version # puts cr ;
+"( - ) Called when the image first loads; use for custom startup routines" :doc
+
+i: query        ( n-n ) 5 # out, wait 5 # in, ;
+( NEEDS-DESCRIPTION )
+
+i: run-on-boot  (  -  )
+   -1  # query memory # !,  ( Memory Size     )
+   -2  # query fb #     !,  ( Canvas Present? )
+   -3  # query fw #     !,  ( Canvas Width    )
+   -4  # query fh #     !,  ( Canvas Height   )
+   -11 # query cw #     !,  ( Console Width   )
+   -12 # query ch #     !,  ( Console Height  )
+   boot ;
+( NEEDS-DESCRIPTION )
+
+( Dictionary Search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+2 elements name found
+
+i: prepare  ( a-a  ) found # off name # !, last # @, ;
+( NEEDS-DESCRIPTION )
+
+i: done     (  -af ) which # @, found # @, ;
+( NEEDS-DESCRIPTION )
+
+i: match?   ( $-$f ) dup, d->name name # @, compare ;
+( NEEDS-DESCRIPTION )
+
+i: <search> ( $-   )
+   repeat match? 0 # !if which # !, found # on ; then @ 0; again ;
+( NEEDS-DESCRIPTION )
+
+w: find find     ( $-af ) prepare <search> done ;
+"( $-af ) Search for a name in the dictionary. Returns  a dictionary header and a flag" :doc
+
+w: ' t-'      ( "-a  ) 32 # accept tib find 0 # !if d->xt @, ; then drop, 0 # ;
+"( ``-a ) Interpret time: return the address ('xt') of a name" :doc
+
+( Word Prefixes and "Not Found" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+label: ___   "___" $,
+
+i: get      ( $-$  ) dup, @, ___ # 2 # +, !, 1+, ;
+( NEEDS-DESCRIPTION )
+
+i: xt:class ( d-aa ) dup, d->xt @, swap, d->class @, ;
+( NEEDS-DESCRIPTION )
+
+i: try      (  -   )
+   tib get find 0 #
+   !if d->xt @, ___ # find
+      0 # !if xt:class withClass 0 # ; then drop,
+   then drop, -1 # ;
+( NEEDS-DESCRIPTION )
+
+w: <notFound> <notFound> ( -f ) tib getLength 2 # >if try then ;
+"( -f ) Called by **notFound**; hook for custom error handling. Used by the prefix system. Returns  a flag of 0 if the error is cleared, or -1 if not " :doc
+
+w: notFound notFound   ( -  ) <notFound> 0; drop, cr tib puts 32 # putc '? # putc cr ;
+"( - ) Called when a name is not found. Calls **<notFound>** and displays an error message  if necessary" :doc
+
+( Listener ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+w: ok ok      (   - ) compiler # @, not 0; drop, cr okmsg # puts ;
+"( - ) Displays the ``ok`` prompt" :doc
+
+i: build#  (   - ) tib toNumber ' .data # jump: withClass
+( NEEDS-DESCRIPTION )
+
+i: number  (   - ) tib isNumber? 0 # !if jump: build# then jump: notFound
+( NEEDS-DESCRIPTION )
+
+i: process ( af- ) 0 # !if xt:class jump: withClass then drop jump: number
+( NEEDS-DESCRIPTION )
+
+w: listen listen  (   - ) repeat ok 32 # accept tib find process again ;
+"( - ) Top level interpreter. Reads and process input." :doc
+
+w: save save    (  -  ) 1 # 4 # out, wait ;
+"( - ) Save the image" :doc
+
+w: bye bye      (  -  ) cr -9 # 5 # out, wait ;
+"( - ) Exit Retro" :doc
+
+( Initial Dictionary ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+last         data: last
+"( -a ) Variable; pointer to most recent dictionary  header" :doc
+
+compiler     data: compiler
+"( -a ) Variable; holds compiler state" :doc
+
+fb           data: fb
+"( -a ) Variable; Is canvas present?" :doc
+
+fw           data: fw
+"( -a ) Variable; Framebuffer width" :doc
+
+fh           data: fh
+"( -a ) Variable; Framebuffer height" :doc
+
+memory       data: memory
+"( -a ) Variable; Holds amount of memory provided by the VM" :doc
+
+cw           data: cw
+"( -a ) Variable; Console width" :doc
+
+ch           data: ch
+"( -a ) Variable; Console height" :doc
+
+heap         data: heap
+"( -a ) Variable; Pointer to current free location in heap" :doc
+
+which        data: which
+"( -a ) Variable; Holds pointer to most recently looked up header" :doc
+
+remapping    data: remapping
+"( -a ) Variable; indicates whether CR, LF, and TAB should be treated as whitespace" :doc
+
+eatLeading?  data: eatLeading?
+"( -a ) Variable; indicates whether **accept** should ignore leading delimiters" :doc
+
+base         data: base
+"( -a ) Variable; holds current base for numeric conversion and display" :doc
+
+update       data: update
+"( -a ) Variable; flag indicating whether or not **redraw** should update the display" :doc
+
+version      data: version
+"( -$ ) String holding version information" :doc
+
+build        data: build
+"( -$ ) String holding a build identifier" :doc
+
+vector       data: vector
+"( -a ) Variable; compile function as a vector" :doc
+
+tabAsWhitespace data: tabAsWhitespace
+"( -a ) Variable; treat tab as whitespace?" :doc
+
+patch
+
+( Finish Metacompiled Part ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ )
+main: run-on-boot jump: listen
+endKernel shrink bootNew
+save bye

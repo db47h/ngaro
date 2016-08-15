@@ -1,0 +1,22 @@
+here
+: nop ;
+' nop is ok hush ( completely disable echo )
+variable: imageSize
+variable fd
+: io     ( vp-v ) dup push out 0 0 out wait pop in ;
+: fopen  ( a-h  ) 1 -1 4 io ;
+: fclose ( h-n   ) -4 4 io ;
+: fputc  ( c-   ) @fd -3 4 io drop ;
+: ?cr    ( n-n  ) dup 20 mod [ cr 9 putc ] ifFalse ;
+
+"retro_image.go" fopen !fd
+ ' fputc is putc ( hijack putc )
+ 
+"package toto" puts cr cr
+"var retroImage = []Cell {" puts
+
+ @imageSize [ ?cr @ putn ", " puts ] iter
+
+cr "}" puts cr
+@fd fclose drop
+bye

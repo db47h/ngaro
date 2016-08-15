@@ -144,11 +144,7 @@ func TestCore(t *testing.T) {
 			var b bytes.Buffer
 			b.WriteString(test.name)
 			b.WriteString(":\n")
-			for pc := 0; pc < len(as); {
-				fmt.Fprintf(&b, "% 4d\t", pc)
-				pc = asm.Disassemble(as, pc, &b)
-				b.WriteByte('\n')
-			}
+			asm.DisassembleAll(as, 0, &b)
 			t.Log(b.String())
 		}
 	}

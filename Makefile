@@ -1,3 +1,4 @@
+GO ?= go
 PKG := github.com/db47h/ngaro
 SRC := vm/*.go cmd/retro/*.go
 
@@ -6,31 +7,39 @@ SRC := vm/*.go cmd/retro/*.go
 all: test
 
 retro: $(SRC)
-	go build $(PKG)/cmd/retro
+	$(GO) build $(PKG)/cmd/retro
 
 install:
-	go install $(PKG)/cmd/retro
+	$(GO) install $(PKG)/cmd/retro
 
 clean:
-	go clean -i $(PKG)/cmd/retro
+	$(GO) clean -i $(PKG)/cmd/retro
 	$(RM) retro
 
 distclean:
-	go clean -i -r $(PKG)/cmd/retro
+	$(GO) clean -i -r $(PKG)/cmd/retro
 	$(RM) retro
 
 test:
-	go test -v $(PKG)/...
+	$(GO) test -v $(PKG)/...
 
 bench:
-	go test -v $(PKG)/vm -run DONOTRUNTESTS -bench .
+	$(GO) test -v $(PKG)/vm -run DONOTRUNTESTS -bench .
 
 cover-asm:
-	go test $(PKG)/asm -coverprofile=cover.out && go tool cover -html=cover.out
+	$(GO) test $(PKG)/asm -coverprofile=cover.out && go tool cover -html=cover.out
+
+cover-vm:
+	$(GO) test $(PKG)/vm -coverprofile=cover.out && go tool cover -html=cover.out
 
 qbench: retro
 	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro <vm/testdata/core.rx >/dev/null
 
+retroImage: retro _misc/kernel.rx _misc/meta.rx _misc/stage2.rx
+	./retro -image vm/testdata/retroImage -with _misc/meta.rx -o retroImage <_misc/kernel.rx
+	./retro -with _misc/stage2.rx
+	
+
 get-deps:
-	go get github.com/pkg/errors
-	go get github.com/pkg/term
+	$(GO) get github.com/pkg/errors
+	$(GO) get github.com/pkg/term

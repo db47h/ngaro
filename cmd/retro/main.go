@@ -111,7 +111,7 @@ func main() {
 	flag.Parse()
 
 	// try to switch the output terminal to raw mode.
-	var rawtty, ioTearDownFn = setupIO()
+	rawtty, ioTearDownFn := setupIO()
 	if ioTearDownFn != nil {
 		defer ioTearDownFn()
 	}

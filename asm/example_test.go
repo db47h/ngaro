@@ -49,54 +49,50 @@ func ExampleAssemble() {
 		return
 	}
 
-	for pc := 0; pc < len(img); {
-		fmt.Printf("% 4d\t", pc)
-		pc = asm.Disassemble(img, pc, os.Stdout)
-		fmt.Println()
-	}
+	asm.DisassembleAll(img, 0, os.Stdout)
 
 	// Output:
-	//    0	nop
-	//    1	123
-	//    3	42
-	//    5	drop
-	//    6	drop
-	//    7	call 32
-	//    8	pop
-	//    9	40
-	//   11	120
-	//   13	nop
-	//   14	nop
-	//   15	nop
-	//   16	nop
-	//   17	nop
-	//   18	nop
-	//   19	nop
-	//   20	nop
-	//   21	nop
-	//   22	nop
-	//   23	nop
-	//   24	nop
-	//   25	nop
-	//   26	nop
-	//   27	nop
-	//   28	nop
-	//   29	nop
-	//   30	nop
-	//   31	nop
-	//   32	42
-	//   34	call 37
-	//   35	drop
-	//   36	;
-	//   37	1+
-	//   38	;
-	//   39	call -1
-	//   40	call -100
-	//   41	call 438
-	//   42	call 39
-	//   43	call 8243
-	//   44	call 42
-	//   45	call 32
+	//          0	nop
+	//          1	123
+	//          3	42
+	//          5	drop
+	//          6	drop
+	//          7	call 32
+	//          8	pop
+	//          9	40
+	//         11	120
+	//         13	nop
+	//         14	nop
+	//         15	nop
+	//         16	nop
+	//         17	nop
+	//         18	nop
+	//         19	nop
+	//         20	nop
+	//         21	nop
+	//         22	nop
+	//         23	nop
+	//         24	nop
+	//         25	nop
+	//         26	nop
+	//         27	nop
+	//         28	nop
+	//         29	nop
+	//         30	nop
+	//         31	nop
+	//         32	42
+	//         34	call 37
+	//         35	drop
+	//         36	;
+	//         37	1+
+	//         38	;
+	//         39	call -1
+	//         40	call -100
+	//         41	call 438
+	//         42	call 39
+	//         43	call 8243
+	//         44	call 42
+	//         45	call 32
 }
 
 // Disassemble is pretty straightforward. Here we Disassemble a hand crafted
@@ -115,18 +111,24 @@ func ExampleDisassemble() {
 		swap drop ;
 		lit		( lit deliberately unterminated at end of image for testing purposes )
 		`
-	fib, err := asm.Assemble("fib", strings.NewReader(fibS))
-
+	img, err := asm.Assemble("fib", strings.NewReader(fibS))
 	if err != nil {
-		fmt.Println(err)
-		return
+		panic(err)
 	}
 
-	for pc := 0; pc < len(fib); {
+	for pc := 0; pc < len(img); {
 		fmt.Printf("% 4d\t", pc)
-		pc = asm.Disassemble(fib, pc, os.Stdout)
-		fmt.Printf("\n")
+		pc, err = asm.Disassemble(img, pc, os.Stdout)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println()
 	}
+
+	fmt.Println("Partial disassembly with DisassembleAll:")
+
+	// Partial diasssembly. Set base accordingly so that the address column is correct.
+	asm.DisassembleAll(img[15:20], 15, os.Stdout)
 
 	// Output:
 	//    0	push
@@ -146,6 +148,11 @@ func ExampleDisassemble() {
 	//   18	drop
 	//   19	;
 	//   20	???
+	// Partial disassembly with DisassembleAll:
+	//         15	loop 8
+	//         17	swap
+	//         18	drop
+	//         19	;
 }
 
 // Demonstrates use of local labels
@@ -163,15 +170,11 @@ func Example_locals() {
 		return
 	}
 
-	for pc := 0; pc < len(img); {
-		fmt.Printf("% 4d\t", pc)
-		pc = asm.Disassemble(img, pc, os.Stdout)
-		fmt.Println()
-	}
+	asm.DisassembleAll(img, 0, os.Stdout)
 
 	// Output:
-	//    0	jump 4
-	//    2	jump 0
-	//    4	jump 6
-	//    6	jump 4
+	//          0	jump 4
+	//          2	jump 0
+	//          4	jump 6
+	//          6	jump 4
 }

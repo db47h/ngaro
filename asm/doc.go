@@ -38,7 +38,7 @@
 //	10	>jump	jgt	✓	xy-	jump to address in next cell if NOS > TOS
 //	11	<jump	jlt	✓	xy-	jump to address in next cell if NOS < TOS
 //	12	!jump	jne	✓	xy-	jump to address in next cell if NOS != TOS
-//	13	=jump	jge	✓	xy-	jump to address in next cell if NOS == TOS
+//	13	=jump	jeq	✓	xy-	jump to address in next cell if NOS == TOS
 //	14	@			a-n	fetch: get the value at the address on TOS and place it on TOS.
 //	15	!			na-	store: store the value in NOS at address in TOS
 //	16	+	add		xy-z	add NOS to TOS and place result on TOS
