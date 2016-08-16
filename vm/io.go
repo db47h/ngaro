@@ -124,10 +124,6 @@ func (i *Instance) WaitReply(v, port Cell) {
 // Wait is the default WAIT handler bound to ports 1, 2, 4, 5 and 8. It can be
 // called manually by custom handlers that override default behaviour.
 func (i *Instance) Wait(v, port Cell) error {
-	if v == 0 {
-		return nil
-	}
-
 	switch port {
 	case 1: // input
 		if v == 1 {
@@ -283,7 +279,9 @@ func (i *Instance) Wait(v, port Cell) error {
 				}
 			case -13:
 				i.Ports[5] = Cell(unsafe.Sizeof(Cell(0)) * 8)
-			// -14: endianness
+			case -14:
+				v = 0x01000000
+				i.Ports[5] = Cell(*(*int8)(unsafe.Pointer(&v)))
 			case -15:
 				// port 8 enabled
 				if i.output != nil && i.output.Port8Enabled() {
@@ -292,9 +290,9 @@ func (i *Instance) Wait(v, port Cell) error {
 					i.Ports[5] = 0
 				}
 			case -16:
-				i.Ports[5] = Cell(len(i.data))
+				i.Ports[5] = Cell(len(i.data) - 1)
 			case -17:
-				i.Ports[5] = Cell(len(i.address))
+				i.Ports[5] = Cell(len(i.address) - 1)
 			default:
 				i.Ports[5] = 0
 			}

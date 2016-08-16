@@ -61,9 +61,4 @@
 //	-1 5 io putn
 //
 // should give you the size of the image.
-//
-// TODO:
-//
-//	- asm: macro assembler?
-//	- asm: symbolic image? i.e. generate images with symbol references.
 package vm

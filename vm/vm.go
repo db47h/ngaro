@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"io"
 	"os"
 )
@@ -58,29 +59,39 @@ type Instance struct {
 // Option interface
 type Option func(*Instance) error
 
-// DataSize sets the data stack size. It will not erase the stack, but data nay
-// be lost if set to a smaller size. The default is 1024 cells.
+// DataSize sets the data stack size. It will not erase the stack, and will
+// panic if the requested size is not sufficient to hold the current stack. The
+// default is 1024 cells.
 func DataSize(size int) Option {
 	return func(i *Instance) error {
+		if size < i.sp {
+			return fmt.Errorf("Requested stack size too small to hold current stack: %d < %d", size, i.sp)
+		}
+		size++
 		if size <= len(i.data) {
 			i.data = i.data[:size]
 		} else {
-			t := make([]Cell, size)
-			copy(t, i.data[:i.sp+1])
+			i.data = make([]Cell, size)
+			copy(i.address, i.data[:i.sp])
 		}
 		return nil
 	}
 }
 
-// AddressSize sets the address stack size. It will not erase the stack, but data nay
-// be lost if set to a smaller size. The default is 1024 cells.
+// AddressSize sets the address stack size. It will not erase the stack, and will
+// panic if the requested size is not sufficient to hold the current stack. The
+// default is 1024 cells.
 func AddressSize(size int) Option {
 	return func(i *Instance) error {
+		if size < i.rsp {
+			return fmt.Errorf("Requested stack size too small to hold current stack: %d < %d", size, i.rsp)
+		}
+		size++
 		if size <= len(i.address) {
-			i.data = i.address[:size]
+			i.address = i.address[:size]
 		} else {
-			t := make([]Cell, size)
-			copy(t, i.address[:i.rsp+1])
+			i.address = make([]Cell, size)
+			copy(i.address, i.address[:i.rsp])
 		}
 		return nil
 	}
@@ -219,10 +230,10 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		return nil, err
 	}
 	if i.data == nil {
-		i.data = make([]Cell, dataSize)
+		i.SetOptions(DataSize(dataSize))
 	}
 	if i.address == nil {
-		i.address = make([]Cell, addressSize)
+		i.SetOptions(AddressSize(addressSize))
 	}
 	return i, nil
 }
@@ -234,8 +245,7 @@ func (i *Instance) Data() []Cell {
 	if i.sp < 1 {
 		return nil
 	}
-	i.data[i.sp+1] = i.Tos
-	return i.data[2 : i.sp+2]
+	return append(i.data[2:i.sp+1], i.Tos)
 }
 
 // Address returns the address stack. Note that value changes will be reflected
@@ -245,8 +255,7 @@ func (i *Instance) Address() []Cell {
 	if i.rsp < 1 {
 		return nil
 	}
-	i.address[i.rsp+1] = i.rtos
-	return i.address[2 : i.rsp+2]
+	return append(i.address[2:i.rsp+1], i.rtos)
 }
 
 // InstructionCount returns the number of instructions executed so far.

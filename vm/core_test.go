@@ -19,11 +19,8 @@ package vm_test
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
@@ -31,7 +28,31 @@ import (
 
 type C []vm.Cell
 
-var imageFile = "testdata/retroImage"
+var retroImage = "testdata/retroImage"
+
+func runImage(img []vm.Cell, name string, opts ...vm.Option) (*vm.Instance, error) {
+	i, err := vm.New(img, name, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return i, i.Run()
+}
+
+func runImageFile(name string, opts ...vm.Option) (*vm.Instance, error) {
+	img, _, err := vm.Load(name, 50000)
+	if err != nil {
+		return nil, err
+	}
+	return runImage(img, name, opts...)
+}
+
+func runAsmImage(assembly, name string, opts ...vm.Option) (*vm.Instance, error) {
+	img, err := asm.Assemble(name, strings.NewReader(assembly))
+	if err != nil {
+		return nil, err
+	}
+	return runImage(img, name, opts...)
+}
 
 func setup(code, stack, rstack C) *vm.Instance {
 	i, err := vm.New(vm.Image(code), "")
@@ -235,10 +256,7 @@ func Test_Fib_AsmRecursive(t *testing.T) {
 
 func Test_Fib_RetroLoop(t *testing.T) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
-	img, _, _ := vm.Load(imageFile, 50000)
-	i, _ := vm.New(img, imageFile,
-		vm.Input(strings.NewReader(fib)))
-	i.Run()
+	i, _ := runImageFile(retroImage, vm.Input(strings.NewReader(fib)))
 	for c := len(i.Address()); c > 0; c-- {
 		i.Rpop()
 	}
@@ -292,8 +310,8 @@ func Benchmark_Fib_RetroLoop(b *testing.B) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		img, _, _ := vm.Load(imageFile, 50000)
-		i, _ := vm.New(img, imageFile,
+		img, _, _ := vm.Load(retroImage, 50000)
+		i, _ := vm.New(img, retroImage,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
 		i.Run()
@@ -304,50 +322,134 @@ func Benchmark_Fib_RetroRecursive(b *testing.B) {
 	fib := ": fib dup 2 < if; 1- dup fib swap 1- fib + ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		img, _, _ := vm.Load(imageFile, 50000)
-		i, _ := vm.New(img, imageFile,
+		img, _, _ := vm.Load(retroImage, 50000)
+		i, _ := vm.New(img, retroImage,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
 		i.Run()
 	}
 }
 
-func BenchmarkRun(b *testing.B) {
-	input, err := os.Open("testdata/core.rx")
+func assertEqual(t *testing.T, name, expected, got string) {
+	if expected != got {
+		t.Errorf("%v:\nExpected: %v\nGot: %v", name, expected, got)
+	}
+}
+func assertEqualI(t *testing.T, name string, expected, got int) {
+	if expected != got {
+		t.Errorf("%v:\nExpected: %v\nGot: %v", name, expected, got)
+	}
+}
+
+func TestVM_Nos(t *testing.T) {
+	test := "testNOS"
+	i, err := vm.New(nil, "")
 	if err != nil {
-		b.Errorf("%+v\n", err)
-		return
+		panic(err)
 	}
-	defer input.Close()
+	assertEqualI(t, test, 0, int(i.Nos()))
+	i.Push(4)
+	assertEqualI(t, test, 0, int(i.Nos()))
+	i.Push(3)
+	assertEqualI(t, test, 4, int(i.Nos()))
+}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		img, _, err := vm.Load(imageFile, 50000)
-		if err != nil {
-			b.Fatalf("%+v\n", err)
-		}
-		input.Seek(0, 0)
-		proc, err := vm.New(img, imageFile, vm.Input(input))
-		if err != nil {
-			panic(err)
-		}
+func TestVM_Drop2(t *testing.T) {
+	test := "testDrop2"
+	i, err := vm.New(nil, "")
+	if err != nil {
+		panic(err)
+	}
+	assertEqualI(t, test, 0, int(i.Depth()))
+	i.Drop2()
+	assertEqualI(t, test, 0, int(i.Depth()))
+	assertEqualI(t, test, 0, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Nos()))
+	i.Push(4)
+	i.Drop2()
+	assertEqualI(t, test, 0, int(i.Depth()))
+	assertEqualI(t, test, 0, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Nos()))
+	i.Push(4)
+	i.Push(7)
+	i.Drop2()
+	assertEqualI(t, test, 0, int(i.Depth()))
+	assertEqualI(t, test, 0, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Nos()))
+	i.Push(4)
+	i.Push(7)
+	i.Push(8)
+	i.Drop2()
+	assertEqualI(t, test, 1, int(i.Depth()))
+	assertEqualI(t, test, 4, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Nos()))
+}
 
-		n := time.Now()
-		b.StartTimer()
+func TestVM_error(t *testing.T) {
+	_, err := runAsmImage("16 @", "VM_error")
+	if err == nil {
+		t.Fatal("Unexpected nil error")
+	}
+	assertEqual(t, "VM_error", "Recovered error @pc=2/3, stack 1/1024, rstack 0/1024: runtime error: index out of range", err.Error())
+}
 
-		err = proc.Run()
-
-		b.StopTimer()
-		el := time.Now().Sub(n).Seconds()
-		c := proc.InstructionCount()
-
-		fmt.Printf("Executed %d instructions in %.3fs. Perf: %.2f MIPS\n", c, el, float64(c)/1e6/el)
-		if err != nil {
-			switch err {
-			case io.EOF: // stdin or stdout closed
-			default:
-				b.Errorf("%+v\n", err)
+func TestVM_inHandler(t *testing.T) {
+	i, err := runAsmImage("43 in", "VM_inHandler",
+		vm.BindInHandler(43, func(i *vm.Instance, p vm.Cell) error {
+			if p != 43 {
+				return fmt.Errorf("Wrong port number %d", p)
 			}
-		}
+			i.Push(42)
+			return nil
+		}))
+	if err != nil {
+		t.Fatal(err)
 	}
+	assertEqualI(t, "VM_inHandler", 42, int(i.Tos))
+}
+
+func TestVM_InstructionCount(t *testing.T) {
+	i, err := runAsmImage("10 :0 loop 0-", "VM_InstructionCount")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqualI(t, "VM_InstructionCount", 11, int(i.InstructionCount()))
+}
+
+func TestVM_DataSize(t *testing.T) {
+	i, err := vm.New(nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := 0; n < 10; n++ {
+		i.Push(vm.Cell(n))
+	}
+	err = i.SetOptions(vm.DataSize(9))
+	if err == nil {
+		t.Fatal("Unexpected nil error")
+	}
+	err = i.SetOptions(vm.DataSize(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqualI(t, "VM_DataSize", 10, len(i.Data()))
+}
+
+func TestVM_AddressSize(t *testing.T) {
+	i, err := vm.New(nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := 0; n < 10; n++ {
+		i.Rpush(vm.Cell(n))
+	}
+	err = i.SetOptions(vm.AddressSize(9))
+	if err == nil {
+		t.Fatal("Unexpected nil error")
+	}
+	err = i.SetOptions(vm.AddressSize(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqualI(t, "VM_DataSize", 10, len(i.Address()))
 }

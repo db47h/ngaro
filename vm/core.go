@@ -120,13 +120,16 @@ func (i *Instance) Rpop() Cell {
 //
 //	- address or data stack full
 //	- attempt to address memory outside of the range [0:len(i.Image)]
+//	- use of a port number outside of the range [0:1024] in an I/O operation.
+//
+//	A full stack trace should be obtainable with:
+//
+//	fmt.Sprintf("%+v", err)
 //
 // The VM will not error on stack underflows. i.e. drop always succeeds, and
 // both Instance.Tos and Instance.Nos() on an empty stack always return 0. This
 // is a design choice that enables end users to use the VM interactively with
-// Retro without crashes on stack underflows. A side effect of this is that the
-// real usable data and address stack sizes are reduced by one cell (i.e. if you
-// specify a data stack size of 1024 cells, only 1023 will be usable).
+// Retro without crashes on stack underflows.
 //
 // Please note that this behavior should not be used as a feature since it may
 // change without notice in future releases.
@@ -142,7 +145,7 @@ func (i *Instance) Run() (err error) {
 			switch e := e.(type) {
 			case error:
 				err = errors.Wrapf(e, "Recovered error @pc=%d/%d, stack %d/%d, rstack %d/%d",
-					i.PC, len(i.Image), i.sp, len(i.data)-2, i.rsp, len(i.address)-2)
+					i.PC, len(i.Image), i.sp, len(i.data)-1, i.rsp, len(i.address)-1)
 			default:
 				panic(e)
 			}
