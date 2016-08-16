@@ -41,8 +41,8 @@ func port1Handler(i *vm.Instance, v, port vm.Cell) error {
 	}
 	// if v == 1, this will always read something
 	e := i.Wait(v, port)
+	// in raw tty mode, we need to handle CTRL-D ourselves
 	if e == nil && i.Ports[1] == 4 {
-		// CTRL-D
 		return io.EOF
 	}
 	return e

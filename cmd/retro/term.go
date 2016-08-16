@@ -36,9 +36,9 @@ func setRawIO() (func(), error) {
 		return nil, err
 	}
 	a := tios
-	a.Iflag &^= syscall.BRKINT | syscall.ISTRIP | syscall.IXON | syscall.IXOFF
-	a.Iflag |= syscall.IGNBRK | syscall.IGNPAR
-	a.Lflag &^= syscall.ICANON | syscall.ISIG | syscall.IEXTEN | syscall.ECHO
+	a.Iflag &^= syscall.IGNBRK | syscall.ISTRIP | syscall.IXON | syscall.IXOFF
+	a.Iflag |= syscall.BRKINT | syscall.IGNPAR
+	a.Lflag &^= syscall.ICANON | syscall.IEXTEN | syscall.ECHO
 	a.Cc[syscall.VMIN] = 1
 	a.Cc[syscall.VTIME] = 0
 	err = termios.Tcsetattr(0, termios.TCSANOW, &a)
