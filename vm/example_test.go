@@ -263,7 +263,6 @@ func ExampleBindOpcodeHandler() {
 		switch opcode {
 		case -1:
 			i.Tos = fib(i.Tos)
-			i.PC++ // DO NOT FORGET !
 			return nil
 		default:
 			return fmt.Errorf("Unsupported opcode value %d", opcode)
@@ -271,7 +270,7 @@ func ExampleBindOpcodeHandler() {
 	}
 
 	img, err := asm.Assemble("test_fib_opcode", strings.NewReader(`
-		.opcode fib -1
+		.opcode fib -1	( define instruction fib as opcode -1 )
 		46 fib
 		`))
 	if err != nil {

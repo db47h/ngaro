@@ -53,6 +53,11 @@ const (
 	OpWait
 )
 
+// Nos returns the Next item On data Stack.
+func (i *Instance) Nos() Cell {
+	return i.data[i.sp]
+}
+
 // Depth returns the data stack depth.
 func (i *Instance) Depth() int {
 	return i.sp
@@ -110,7 +115,21 @@ func (i *Instance) Rpop() Cell {
 // Run starts execution of the VM.
 //
 // If an error occurs, the PC will will point to the instruction that triggered
-// the error.
+// the error. The most likely error condition is an "index out of range"
+// runtime.Error which can occur in the following cases:
+//
+//	- address or data stack full
+//	- attempt to address memory outside of the range [0:len(i.Image)]
+//
+// The VM will not error on stack underflows. i.e. drop always succeeds, and
+// both Instance.Tos and Instance.Nos() on an empty stack always return 0. This
+// is a design choice that enables end users to use the VM interactively with
+// Retro without crashes on stack underflows. A side effect of this is that the
+// real usable data and address stack sizes are reduced by one cell (i.e. if you
+// specify a data stack size of 1024 cells, only 1023 will be usable).
+//
+// Please note that this behavior should not be used as a feature since it may
+// change without notice in future releases.
 //
 // If the VM was exited cleanly from a user program with the `bye` word, the PC
 // will be equal to len(i.Image) and err will be nil.
@@ -122,7 +141,8 @@ func (i *Instance) Run() (err error) {
 		if e := recover(); e != nil {
 			switch e := e.(type) {
 			case error:
-				err = errors.Wrapf(e, "Recovered error @pc=%d/%d, stack %d/%d, rstack %d/%d", i.PC, len(i.Image), i.sp, len(i.data), i.rsp, len(i.address))
+				err = errors.Wrapf(e, "Recovered error @pc=%d/%d, stack %d/%d, rstack %d/%d",
+					i.PC, len(i.Image), i.sp, len(i.data)-2, i.rsp, len(i.address)-2)
 			default:
 				panic(e)
 			}
@@ -294,12 +314,16 @@ func (i *Instance) Run() (err error) {
 				i.rsp++
 				i.address[i.rsp] = i.rtos
 				i.rtos, i.PC = Cell(i.PC), int(op)
+				for i.PC < len(i.Image) && i.Image[i.PC] == OpNop {
+					i.PC++
+				}
 			} else if i.opHandler != nil {
 				// custom opcode
 				err = i.opHandler(i, op)
 				if err != nil {
 					return err
 				}
+				i.PC++
 			}
 		}
 		i.insCount++

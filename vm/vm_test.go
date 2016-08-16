@@ -47,17 +47,18 @@ func setup(code, stack, rstack C) *vm.Instance {
 	return i
 }
 
-func check(t *testing.T, testName string, i *vm.Instance, ip int, stack C, rstack C) {
+func check(t *testing.T, testName string, i *vm.Instance, ip int, stack C, rstack C) bool {
 	err := i.Run()
 	if err != nil {
 		t.Errorf("%+v", err)
-		return
+		return false
 	}
 	if ip <= 0 {
 		ip = len(i.Image)
 	}
 	if ip != i.PC {
 		t.Errorf("%v", fmt.Errorf("%s: Bad IP %d != %d", testName, i.PC, ip))
+		return false
 	}
 	stk := i.Data()
 	diff := len(stk) != len(stack)
@@ -71,6 +72,7 @@ func check(t *testing.T, testName string, i *vm.Instance, ip int, stack C, rstac
 	}
 	if diff {
 		t.Errorf("%v", fmt.Errorf("%s: Stack error: expected %d, got %d", testName, stack, stk))
+		return false
 	}
 	stk = i.Address()
 	diff = len(stk) != len(rstack)
@@ -84,7 +86,9 @@ func check(t *testing.T, testName string, i *vm.Instance, ip int, stack C, rstac
 	}
 	if diff {
 		t.Errorf("%v", fmt.Errorf("%s: Return stack error: expected %d, got %d", testName, rstack, stk))
+		return false
 	}
+	return true
 }
 
 var tests = [...]struct {
@@ -108,7 +112,7 @@ var tests = [...]struct {
 				  .org 32
 				  :fallthrough 0 1 0;
 				  :return     -1 0 0;
-				  :quit nop`, C{0, 1, -1, -1}, C{2}, -1},
+				  :quit`, C{0, 1, -1, -1}, C{2}, -1},
 	{"jump", "1 2 jump OVER 3 4 5 :OVER 6 7", C{1, 2, 6, 7}, nil, -1},
 	{"<jump", "2 1 <jump END 12 1 2 <jump END 21 :END", C{12}, nil, -1},
 	{">jump", "1 2 >jump END 21 2 1 >jump END 12 :END", C{21}, nil, -1},
@@ -138,8 +142,8 @@ func TestCore(t *testing.T) {
 			continue
 		}
 		p := setup(as, nil, nil)
-		check(t, test.name, p, test.pc, test.data, test.address)
-		if t.Failed() {
+
+		if !check(t, test.name, p, test.pc, test.data, test.address) {
 			// disasm
 			var b bytes.Buffer
 			b.WriteString(test.name)
@@ -195,7 +199,6 @@ func fibHandler(i *vm.Instance, opcode vm.Cell) error {
 	switch opcode {
 	case -1:
 		i.Tos = fibFunc(i.Tos)
-		i.PC++ // DO NOT FORGET !
 		return nil
 	default:
 		return fmt.Errorf("Unsupported opcode value %d", opcode)

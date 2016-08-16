@@ -18,26 +18,25 @@ Please visit http://forthworks.com/retro/ to get you started about the Retro
 language and the Ngaro Virtual Machine.
 
 The main purpose of this implementation is to allow customization and
-communication between Retro programs and Go programs via custom I/O handlers
-(i.e. scripting Go programs in Retro) as well as supporting custom opcodes at
-the VM level. The package examples demonstrate various use cases. For more
-details on I/O handling in the Ngaro VM, please refer to
-http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
+communication between Retro programs and Go programs via custom opcodes and
+I/O handlers (i.e. scripting Go programs in Retro). The package examples
+demonstrate various use cases. For more details on I/O handling in the Ngaro
+VM, please refer to http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
+
+Custom opcodes are implemented by intercepting implicit calls to negative
+memory addresses. This limits the total addressable memory to 2GiB on 32 bits
+systems, but this also allows the VM to be fully backwards compatible with
+existing Retro images while still providing enhanced capabilities.
 
 This implementation passes all tests from the retro-language test suite and
 its performance when running tests/core.rx is slightly better than with the
 reference implementations:
 
-	1.17s for this implementation, compiled with Go 1.7rc6.
-	1.30s for the reference Go implementation, compiled with Go 1.7rc6
+	1.12s for this implementation, no custom opcodes, compiled with Go 1.7.
+	1.30s for the reference Go implementation, compiled with Go 1.7
 	2.22s for the reference C implementation, compiled with gcc-5.4 -O3 -fomit-frame-pointer
 
 For all intents and purposes, the VM behaves according to the specification.
-With one exception: if you implement custom opcodes, be aware that for
-performance reasons, the PC (aka. Instruction Pointer) is not incremented in
-a single place; rather each opcode deals with the PC as needed. Implementors of
-custom opcodes will need to take care of updating the PC accordingly. This
-should be of no concern to other users, even with custom I/O  handlers.
-Should you find out that the VM does not behave according to the spec, please
-file a bug report.
-	
+This is of particular importance to implementors of custom opcodes: the VM
+always increments the PC after each opcode, thus opcodes altering the PC must
+adjust it accordingly (i.e. set it to its real target minus one).
