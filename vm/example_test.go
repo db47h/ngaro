@@ -122,7 +122,7 @@ func ExampleBindWaitHandler() {
 				i.WaitReply(1080, port)
 			default:
 				// not a value that we handle ourselves, hand over the request
-				// to the default implementaion
+				// to the default implementation
 				return i.Wait(v, port)
 			}
 			return nil

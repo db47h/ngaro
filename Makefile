@@ -1,8 +1,8 @@
 GO ?= go
 PKG := github.com/db47h/ngaro
-SRC := vm/*.go cmd/retro/*.go
+SRC := vm/*.go cmd/retro/*.go asm/*.go
 
-.PHONY: all install clean test bench qbench get-deps cover-asm
+.PHONY: all install clean test bench qbench get-deps cover-asm cover-vm report
 
 all: test
 
@@ -39,6 +39,12 @@ retroImage: retro _misc/kernel.rx _misc/meta.rx _misc/stage2.rx
 	./retro -image vm/testdata/retroImage -with _misc/meta.rx -o retroImage <_misc/kernel.rx
 	./retro -with _misc/stage2.rx
 	
+report: $(SRC)
+	@echo "=== gocyclo ===\n"
+	@gocyclo . | head
+	@echo "\n\n=== misspell ===\n"
+	@misspell -source go $^
+	@misspell -source text README.md
 
 get-deps:
 	$(GO) get github.com/pkg/errors
