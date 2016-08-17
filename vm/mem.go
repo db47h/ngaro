@@ -23,15 +23,12 @@ import (
 	"unsafe"
 )
 
-// Image encapsulates a VM's memory
-type Image []Cell
-
-// Load loads an image from file fileName. Returns a VM Image ready to run, the
-// actual number of cells read from the file and any error.
+// Load loads a memory image from file fileName. Returns a VM Cell slice ready to run
+// from, the actual number of cells read from the file and any error.
 //
-// The returned Image should have its length equal equal to the maximum of the
+// The returned slice should have its length equal to the maximum of the
 // requested minimum size and the image file size + 1024 free cells.
-func Load(fileName string, minSize int) (i Image, fileCells int, err error) {
+func Load(fileName string, minSize int) (mem []Cell, fileCells int, err error) {
 	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, 0, err
@@ -51,52 +48,46 @@ func Load(fileName string, minSize int) (i Image, fileCells int, err error) {
 	if minSize > imgCells {
 		imgCells = minSize
 	}
-	i = make(Image, imgCells)
-	err = binary.Read(f, binary.LittleEndian, i[:fileCells])
+	mem = make([]Cell, imgCells)
+	err = binary.Read(f, binary.LittleEndian, mem[:fileCells])
 	if err != nil {
 		return nil, 0, err
 	}
-	return i, fileCells, nil
+	return mem, fileCells, nil
 }
 
-// Save saves the image. If the shrink parameter is true, only the portion of
-// the image from offset 0 to HERE will be saved. Note that HERE is read from
-// memory cell 3.
-func (i Image) Save(fileName string, shrink bool) error {
+// Save saves a Cell slice to an memory image file.
+func Save(mem []Cell, fileName string) error {
 	f, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
-	if shrink {
-		i = i[0:i[3]]
-	}
-	return binary.Write(f, binary.LittleEndian, i)
+	return binary.Write(f, binary.LittleEndian, mem)
 }
 
-// DecodeString returns the string starting at position start in the image.
-// Strings stored in the image must be zero terminated. The trailing '\0' is
-// not returned.
-func (i Image) DecodeString(start Cell) string {
+// DecodeString returns the string starting at position start in the specified
+// slice. Strings stored in the slice must be zero terminated. The trailing '\0'
+// is not returned.
+func DecodeString(mem []Cell, start Cell) string {
 	pos := int(start)
 	end := pos
-	for ; end < len(i) && i[end] != 0; end++ {
+	for ; end < len(mem) && mem[end] != 0; end++ {
 	}
 	str := make([]byte, end-pos)
-	for idx, c := range i[pos:end] {
+	for idx, c := range mem[pos:end] {
 		str[idx] = byte(c)
 	}
 	return string(str)
 }
 
-// EncodeString writes the given string at position start in the Image and
-// terminates it with a '\0' Cell.
-func (i Image) EncodeString(start Cell, s string) {
+// EncodeString writes the given string at position start in specified slice
+// and terminates it with a '\0' Cell.
+func EncodeString(mem []Cell, start Cell, s string) {
 	pos := int(start)
 	for _, c := range []byte(s) {
-		i[pos] = Cell(c)
+		mem[pos] = Cell(c)
 		pos++
 	}
-	i[pos] = 0
+	mem[pos] = 0
 }

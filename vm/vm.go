@@ -34,10 +34,9 @@ const (
 // Instance represents an Ngaro VM instance.
 type Instance struct {
 	PC        int    // Program Counter (aka. Instruction Pointer)
-	Image     Image  // Memory image
+	Mem       []Cell // Memory image
 	Ports     []Cell // I/O ports
 	Tos       Cell   // cell on top of stack
-	fileCells int
 	sp        int
 	rsp       int
 	rtos      Cell
@@ -54,6 +53,7 @@ type Instance struct {
 	output    Terminal
 	fid       Cell
 	files     map[Cell]*os.File
+	memDump   func([]Cell, string) error
 }
 
 // Option interface
@@ -111,10 +111,15 @@ func Output(t Terminal) Option {
 	}
 }
 
-// Shrink enables or disables image shrinking when saving it. The default is
-// false.
-func Shrink(shrink bool) Option {
-	return func(i *Instance) error { i.shrink = shrink; return nil }
+// SaveMemImage overrides the memory image dump function called when writing 1 to I/O port 4.
+// The default is:
+//
+//	Save(i.Mem, i.imageFile)
+//
+// This is to allow implementations of specific languages like Retro, to enable
+// image shrinking based on some value in the VM instance's memory.
+func SaveMemImage(fn func(mem []Cell, filename string) error) Option {
+	return func(i *Instance) error { i.memDump = fn; return nil }
 }
 
 // InHandler is the function prototype for custom IN handlers.
@@ -200,17 +205,17 @@ func (i *Instance) SetOptions(opts ...Option) error {
 
 // New creates a new Ngaro Virtual Machine instance.
 //
-// The image parameter is the Cell array used as memory by the VM.
+// The mem parameter is the Cell array used as memory image by the VM.
 //
 // The imageFile parameter is the fileName that will be used to dump the
 // contents of the memory image. It does not have to exist or even be writable
 // as long as no user program requests an image dump.
 //
 // Options will be set by calling SetOptions.
-func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
+func New(mem []Cell, imageFile string, opts ...Option) (*Instance, error) {
 	i := &Instance{
 		PC:        0,
-		Image:     image,
+		Mem:       mem,
 		Ports:     make([]Cell, portCount),
 		inH:       make(map[Cell]InHandler),
 		outH:      make(map[Cell]OutHandler),
@@ -218,7 +223,7 @@ func New(image Image, imageFile string, opts ...Option) (*Instance, error) {
 		imageFile: imageFile,
 		files:     make(map[Cell]*os.File),
 		fid:       1,
-		fileCells: len(image),
+		memDump:   Save,
 	}
 
 	// default Wait Handlers

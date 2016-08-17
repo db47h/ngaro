@@ -64,6 +64,21 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 	}
 }
 
+func shrinkSave(mem []vm.Cell, fileName string) error {
+	end := vm.Cell(len(mem))
+	if len(mem) < 4 {
+		return nil
+	}
+	if here := mem[3]; *shrink && here >= 0 && here < end {
+		end = here
+	}
+	err := vm.Save(mem[:end], *outFileName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func setupIO() (raw bool, tearDown func()) {
 	var err error
 	if *rawIO {
@@ -85,8 +100,8 @@ func atExit(i *vm.Instance, err error) {
 	}
 	fmt.Fprintf(os.Stderr, "\n%+v\n", err)
 	if i != nil {
-		if i.PC < len(i.Image) {
-			fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Addr: %v\n", i.PC, i.Image[i.PC], i.Data(), i.Address())
+		if i.PC < len(i.Mem) {
+			fmt.Fprintf(os.Stderr, "PC: %v (%v), Stack: %v, Addr: %v\n", i.PC, i.Mem[i.PC], i.Data(), i.Address())
 		} else {
 			fmt.Fprintf(os.Stderr, "PC: %v, Stack: %v\nAddr:  %v\n", i.PC, i.Data(), i.Address())
 		}
@@ -118,7 +133,7 @@ func main() {
 
 	// default options
 	var opts = []vm.Option{
-		vm.Shrink(*shrink),
+		vm.SaveMemImage(shrinkSave),
 		vm.Output(output),
 	}
 

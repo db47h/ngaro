@@ -145,20 +145,20 @@ func (i *Instance) Run() (err error) {
 			switch e := e.(type) {
 			case error:
 				err = errors.Wrapf(e, "Recovered error @pc=%d/%d, stack %d/%d, rstack %d/%d",
-					i.PC, len(i.Image), i.sp, len(i.data)-1, i.rsp, len(i.address)-1)
+					i.PC, len(i.Mem), i.sp, len(i.data)-1, i.rsp, len(i.address)-1)
 			default:
 				panic(e)
 			}
 		}
 	}()
 	i.insCount = 0
-	for i.PC < len(i.Image) {
-		op := i.Image[i.PC]
+	for i.PC < len(i.Mem) {
+		op := i.Mem[i.PC]
 		switch op {
 		case OpNop:
 			i.PC++
 		case OpLit:
-			i.Push(i.Image[i.PC+1])
+			i.Push(i.Mem[i.PC+1])
 			i.PC += 2
 		case OpDup:
 			i.sp++
@@ -180,48 +180,48 @@ func (i *Instance) Run() (err error) {
 			v := i.Tos - 1
 			if v > 0 {
 				i.Tos = v
-				i.PC = int(i.Image[i.PC+1])
+				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.Drop()
 				i.PC += 2
 			}
 		case OpJump:
-			i.PC = int(i.Image[i.PC+1])
+			i.PC = int(i.Mem[i.PC+1])
 		case OpReturn:
 			i.PC = int(i.Rpop() + 1)
 		case OpGtJump:
 			if i.data[i.sp] > i.Tos {
-				i.PC = int(i.Image[i.PC+1])
+				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpLtJump:
 			if i.data[i.sp] < i.Tos {
-				i.PC = int(i.Image[i.PC+1])
+				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpNeJump:
 			if i.data[i.sp] != i.Tos {
-				i.PC = int(i.Image[i.PC+1])
+				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpEqJump:
 			if i.data[i.sp] == i.Tos {
-				i.PC = int(i.Image[i.PC+1])
+				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpFetch:
-			i.Tos = i.Image[i.Tos]
+			i.Tos = i.Mem[i.Tos]
 			i.PC++
 		case OpStore:
-			i.Image[i.Tos] = i.data[i.sp]
+			i.Mem[i.Tos] = i.data[i.sp]
 			i.Drop2()
 			i.PC++
 		case OpAdd:
@@ -317,7 +317,7 @@ func (i *Instance) Run() (err error) {
 				i.rsp++
 				i.address[i.rsp] = i.rtos
 				i.rtos, i.PC = Cell(i.PC), int(op)
-				for i.PC < len(i.Image) && i.Image[i.PC] == OpNop {
+				for i.PC < len(i.Mem) && i.Mem[i.PC] == OpNop {
 					i.PC++
 				}
 			} else if i.opHandler != nil {

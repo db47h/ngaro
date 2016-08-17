@@ -20,7 +20,7 @@ func dumpSlice(w *ngi.ErrWriter, a []vm.Cell) error {
 	return w.Err
 }
 
-// Dump dumps the virtual machine stacks and image to the specified io.Writer.
+// Dump dumps the virtual machine stacks and memory image to the specified io.Writer.
 func dumpVM(i *vm.Instance, size int, w io.Writer) error {
 	ew := ngi.NewErrWriter(w)
 	ew.Write([]byte{'\x1C'})
@@ -28,5 +28,5 @@ func dumpVM(i *vm.Instance, size int, w io.Writer) error {
 	ew.Write([]byte{'\x1D'})
 	dumpSlice(ew, i.Address())
 	ew.Write([]byte{'\x1D'})
-	return dumpSlice(ew, i.Image[:size])
+	return dumpSlice(ew, i.Mem[:size])
 }

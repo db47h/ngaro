@@ -60,7 +60,7 @@ var opcodes = [...][]string{
 }
 
 // Assemble compiles assembly read from the supplied io.Reader and returns the
-// resulting image and error if any.
+// resulting memory image and error if any.
 //
 // Then name parameter is used only in error messages to name the source of the
 // error. If the io.Reader is a file, name should be the file name.

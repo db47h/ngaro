@@ -26,6 +26,10 @@
 // VM, please refer to
 // http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
 //
+// Another goal is to separate the VM core from its traditional use in
+// association with the Retro language. Some Retro specific behaviors have been
+// moved from the VM to the retro command line tool. See https://github.com/db47h/ngaro/cmd/retro.
+//
 // Custom opcodes are implemented by intercepting implicit calls to negative
 // memory addresses. This limits the total addressable memory to 2GiB on 32 bits
 // systems, but this also allows the VM to be fully backwards compatible with
@@ -60,5 +64,5 @@
 //
 //	-1 5 io putn
 //
-// should give you the size of the image.
+// should give you the total memory size.
 package vm

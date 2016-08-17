@@ -111,7 +111,7 @@ func (p *parser) abort() bool { return len(p.errs) >= maxErrors }
 
 // write is the actual compilation function. It emits the given value at the
 // current compile address, then imcrements it. It also takes care of managing
-// the image size.
+// the memory image size.
 func (p *parser) write(v vm.Cell) {
 	for p.pc >= len(p.i) {
 		p.i = append(p.i, make([]vm.Cell, 16384)...)
@@ -231,9 +231,9 @@ func (p *parser) scan() (tok rune, s string, v int) {
 	return tok, s, v
 }
 
-// Parse does the parsing and compiling. Returns the compiled VM image as a Cell
-// slice and any error that occurred. If not nil, the returned error can safely
-// be cast to an ErrAsm value that will contain up to 10 entries.
+// Parse does the parsing and compiling. Returns the compiled VM memory image as
+// a Cell slice and any error that occurred. If not nil, the returned error can
+// safely be cast to an ErrAsm value that will contain up to 10 entries.
 func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 	// state:
 	// 0: accept anything

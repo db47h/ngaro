@@ -162,17 +162,20 @@ func (i *Instance) Wait(v, port Cell) error {
 			var b [1]byte
 			switch v {
 			case 1: // save image
-				i.Image.Save(i.imageFile, i.shrink)
+				err := i.memDump(i.Mem, i.imageFile)
+				if err != nil {
+					return err
+				}
 				i.WaitReply(0, 4)
 			case 2: // include file
 				i.WaitReply(0, 4)
-				f, err := os.Open(i.Image.DecodeString(i.Pop()))
+				f, err := os.Open(DecodeString(i.Mem, i.Pop()))
 				if err != nil {
 					return err
 				}
 				i.PushInput(f)
 			case -1: // open file
-				fd := i.openfile(i.Image.DecodeString(i.data[i.sp]), i.Tos)
+				fd := i.openfile(DecodeString(i.Mem, i.data[i.sp]), i.Tos)
 				i.Drop2()
 				i.WaitReply(fd, 4)
 			case -2: // read byte
@@ -224,7 +227,7 @@ func (i *Instance) Wait(v, port Cell) error {
 				}
 				i.WaitReply(sz, 4)
 			case -8: // delete
-				err := os.Remove(i.Image.DecodeString(i.Pop()))
+				err := os.Remove(DecodeString(i.Mem, i.Pop()))
 				if err != nil {
 					i.WaitReply(0, 4)
 				} else {
@@ -239,7 +242,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			switch i.Ports[5] {
 			case -1:
 				// image size
-				i.Ports[5] = Cell(len(i.Image))
+				i.Ports[5] = Cell(len(i.Mem))
 			// -2, -3, -4: canvas related
 			case -5:
 				// data depth
@@ -254,12 +257,12 @@ func (i *Instance) Wait(v, port Cell) error {
 			case -9:
 				// exit VM
 				i.Ports[5] = 0
-				i.PC = len(i.Image) - 1 // will be incremented when returning
+				i.PC = len(i.Mem) - 1 // will be incremented when returning
 			case -10:
 				// environment query
 				src, dst := i.Tos, i.data[i.sp]
 				i.Drop2()
-				i.Image.EncodeString(dst, os.Getenv(i.Image.DecodeString(src)))
+				EncodeString(i.Mem, dst, os.Getenv(DecodeString(i.Mem, src)))
 				i.Ports[5] = 0
 			case -11:
 				// console width

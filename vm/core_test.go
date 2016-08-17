@@ -55,7 +55,7 @@ func runAsmImage(assembly, name string, opts ...vm.Option) (*vm.Instance, error)
 }
 
 func setup(code, stack, rstack C) *vm.Instance {
-	i, err := vm.New(vm.Image(code), "")
+	i, err := vm.New([]vm.Cell(code), "")
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +75,7 @@ func check(t *testing.T, testName string, i *vm.Instance, ip int, stack C, rstac
 		return false
 	}
 	if ip <= 0 {
-		ip = len(i.Image)
+		ip = len(i.Mem)
 	}
 	if ip != i.PC {
 		t.Errorf("%v", fmt.Errorf("%s: Bad IP %d != %d", testName, i.PC, ip))
