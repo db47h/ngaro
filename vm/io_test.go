@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
 )
 
@@ -138,5 +139,33 @@ func Test_multireader(t *testing.T) {
 	}
 	for n := 6; n > 0; n-- {
 		assertEqualI(t, "io_multireader", n+48, int(i.Pop()))
+	}
+}
+
+func TestSave(t *testing.T) {
+	d := "testDump"
+	img, err := asm.Assemble("Save", strings.NewReader("1 4 out 0 0 out wait 4 in"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	i, err := runImage(img, d, vm.SaveMemImage(vm.Save))
+	defer os.Remove(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqualI(t, "Save", 0, int(i.Pop()))
+	saved, cells, err := vm.Load(d, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var same = true
+	for n := range img {
+		if img[n] != saved[n] {
+			same = false
+			break
+		}
+	}
+	if !same {
+		t.Fatalf("Save image error:\nexpected %v, got %v", img, saved[:cells])
 	}
 }

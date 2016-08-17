@@ -215,7 +215,7 @@ func (i *Instance) Wait(v, port Cell) error {
 				o, f := i.data[i.sp], i.files[i.Tos]
 				i.Drop2()
 				if f != nil {
-					p, _ = f.Seek(int64(o), 0)
+					p, _ = f.Seek(int64(o), os.SEEK_SET)
 				}
 				i.WaitReply(Cell(p), 4)
 			case -7: // file size
