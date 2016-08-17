@@ -40,3 +40,69 @@ For all intents and purposes, the VM behaves according to the specification.
 This is of particular importance to implementors of custom opcodes: the VM
 always increments the PC after each opcode, thus opcodes altering the PC must
 adjust it accordingly (i.e. set it to its real target minus one).
+
+## Installing
+
+Install the retro command line tool:
+
+	go get -u github.com/db47h/ngaro/cmd/retro
+
+Test:
+
+	go test -i github.com/db47h/ngaro/vm
+	go test -v github.com/db47h/ngaro/vm/...
+
+Build a retroImage:
+
+	cd $GOPATH/github.com/db47h/ngaro/cmd/retro
+	make retroImage
+
+Test the retro command line tool:
+
+	./retro --with vm/testdata/core.rx
+
+Should generate a lot of output. Just check that the last lines look like this:
+
+	ok   summary
+	360 tests run: 360 passed, 0 failed.
+	186 words checked, 0 words unchecked, 37 i/o words ignored.
+
+	ok  bye
+
+## Support for 32/64 bits images on all architectures
+
+Since v2.0.0, the Cell type (the base data type in Ngaro VM) is Go's int. This
+means that depending on the target you compile for, it will be either 32 or 64
+bits. The retro command line tool supports loading and saving retro memory
+images where Cells can be either size. For example, to quickly get started you
+can do this:
+
+	echo "save bye" | \
+	retro -image vm/testdata/retroImage -ibits 32 -o retroImage
+
+This will load the memory image file `vm/testdata/retroImage` which we know to
+be encoded using 32 bits cells, and save it in the current directory with
+whatever encoding is the default for your platform. You could also force a
+specific output Cell size with the `-obits` flag.
+
+Loading and saving with encodings different from the target platform is safe:
+it will work or generate an error, but never create a corrupted memory
+image file. For example, with a 64 bits retro binary, saving to 32 bits cells
+will check that written values fit in a 32 bit int. If not, it will generate an
+error.
+
+## Releases
+
+This project uses [semantic
+versioning](http://dave.cheney.net/2016/06/24/gophers-please-tag-your-releases)
+and tries to adhere to it.
+
+Please do not use releases before v2.0.0 as there are a few known bugs in these.
+
+See the [releases page](https://github.com/db47h/ngaro/releases).
+
+For a detailed change log, check the [commit log](https://github.com/db47h/ngaro/commits/master).
+
+## License
+
+This project is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).

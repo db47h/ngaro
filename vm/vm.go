@@ -23,7 +23,7 @@ import (
 )
 
 // Cell is the raw type stored in a memory location.
-type Cell int32
+type Cell int
 
 const (
 	portCount   = 1024
@@ -53,7 +53,7 @@ type Instance struct {
 	output    Terminal
 	fid       Cell
 	files     map[Cell]*os.File
-	memDump   func([]Cell, string) error
+	memDump   func(string, []Cell, int) error
 }
 
 // Option interface
@@ -114,11 +114,12 @@ func Output(t Terminal) Option {
 // SaveMemImage overrides the memory image dump function called when writing 1 to I/O port 4.
 // The default is:
 //
-//	Save(i.Mem, i.imageFile)
+//	Save(i.imageFile, i.Mem, 0)
 //
-// This is to allow implementations of specific languages like Retro, to enable
-// image shrinking based on some value in the VM instance's memory.
-func SaveMemImage(fn func(mem []Cell, filename string) error) Option {
+// This is to allow saving images of different Cell sizes and to enable
+// implementations of specific languages (like Retro) to do image shrinking
+// based on some value in the VM instance's memory.
+func SaveMemImage(fn func(filename string, mem []Cell, cellBits int) error) Option {
 	return func(i *Instance) error { i.memDump = fn; return nil }
 }
 

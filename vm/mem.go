@@ -17,18 +17,75 @@
 package vm
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"unsafe"
 )
 
-// Load loads a memory image from file fileName. Returns a VM Cell slice ready to run
-// from, the actual number of cells read from the file and any error.
+// load32 loads a 32 bits image.
+func load32(mem []Cell, r io.Reader, fileCells int) error {
+	var b = make([]byte, 4)
+	var p int
+	for p < len(mem) {
+		_, err := io.ReadFull(r, b)
+		if err != nil {
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		mem[p] = Cell(int32(binary.LittleEndian.Uint32(b)))
+		p++
+	}
+	if p != fileCells {
+		return fmt.Errorf("load: read %c cells, expected %d", p, fileCells)
+	}
+	return nil
+}
+
+// load64 loads a 64 bits image.
+func load64(mem []Cell, r io.Reader, fileCells int) error {
+	var b = make([]byte, 8)
+	var p int
+	for p < len(mem) {
+		_, err := io.ReadFull(r, b)
+		if err != nil {
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		v := int64(binary.LittleEndian.Uint64(b))
+		n := Cell(v)
+		if int64(n) != v {
+			return fmt.Errorf("load error: 64 bits value %d at memory location %d too large", v, p)
+		}
+		mem[p] = n
+		p++
+	}
+	if p != fileCells {
+		return fmt.Errorf("load: read %c cells, expected %d", p, fileCells)
+	}
+	return nil
+}
+
+// Load loads a memory image from file fileName. Returns a VM Cell slice ready
+// to run from, the actual number of cells read from the file and any error. The
+// cellBits parameter specifies the number of bits per Cell in the file.
 //
 // The returned slice should have its length equal to the maximum of the
 // requested minimum size and the image file size + 1024 free cells.
-func Load(fileName string, minSize int) (mem []Cell, fileCells int, err error) {
+func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, err error) {
+	switch cellBits {
+	case 0:
+		cellBits = int(unsafe.Sizeof(Cell(0))) * 8
+	case 32, 64:
+	default:
+		return nil, 0, fmt.Errorf("Loading of %d bits images is not supported", cellBits)
+	}
 	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, 0, err
@@ -42,28 +99,69 @@ func Load(fileName string, minSize int) (mem []Cell, fileCells int, err error) {
 	if sz > int64((^uint(0))>>1) { // MaxInt
 		return nil, 0, fmt.Errorf("Load %v: file too large", fileName)
 	}
-	fileCells = int(sz / int64(unsafe.Sizeof(Cell(0))))
+	fileCells = int(sz / int64(cellBits/8))
 	// make sure there are at least 1024 free cells at the end of the image
 	imgCells := fileCells + 1024
 	if minSize > imgCells {
 		imgCells = minSize
 	}
 	mem = make([]Cell, imgCells)
-	err = binary.Read(f, binary.LittleEndian, mem[:fileCells])
+	switch cellBits {
+	case 32:
+		err = load32(mem, bufio.NewReader(f), fileCells)
+	case 64:
+		err = load64(mem, bufio.NewReader(f), fileCells)
+	}
 	if err != nil {
-		return nil, 0, err
+		return nil, fileCells, err
 	}
 	return mem, fileCells, nil
 }
 
-// Save saves a Cell slice to an memory image file.
-func Save(mem []Cell, fileName string) error {
+// Save saves a Cell slice to an memory image file. The cellBits parameter
+// specifies the number of bits per Cell in the file.
+func Save(fileName string, mem []Cell, cellBits int) error {
 	f, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return binary.Write(f, binary.LittleEndian, mem)
+	w := bufio.NewWriter(f)
+	defer func() {
+		w.Flush()
+		f.Close()
+		// delete file on error
+		if err != nil {
+			os.Remove(fileName)
+		}
+	}()
+	if cellBits == 0 {
+		cellBits = int(unsafe.Sizeof(Cell(0))) * 8
+	}
+	switch cellBits {
+	case 32:
+		var b [4]byte
+		for k, v := range mem {
+			nv := int32(v)
+			if Cell(nv) != v {
+				return fmt.Errorf("save error: 64 bits value %d at memory location %d too large", v, k)
+			}
+			binary.LittleEndian.PutUint32(b[:], uint32(nv))
+			if _, err = w.Write(b[:]); err != nil {
+				return err
+			}
+		}
+	case 64:
+		var b [8]byte
+		for _, v := range mem {
+			binary.LittleEndian.PutUint64(b[:], uint64(v))
+			if _, err = w.Write(b[:]); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("Saving to %d bits images is not supported", cellBits)
+	}
+	return err
 }
 
 // DecodeString returns the string starting at position start in the specified

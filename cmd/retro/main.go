@@ -22,18 +22,45 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"unsafe"
 
 	"github.com/db47h/ngaro/vm"
 )
 
-var fileName = flag.String("image", "retroImage", "Load image from file `filename`")
-var outFileName = flag.String("o", "", "Save image to file `filename`")
-var withFile = flag.String("with", "", "Add `filename` to the input stack")
-var shrink = flag.Bool("shrink", true, "When saving, don't save unused cells")
-var size = flag.Int("size", 100000, "image size in cells")
-var rawIO = flag.Bool("raw", true, "enable raw terminal IO")
-var debug = flag.Bool("debug", false, "enable debug diagnostics")
-var dump = flag.Bool("dump", false, "dump stacks and image upon exit, for ngarotest.py")
+type fileList []string
+
+func (f *fileList) String() string     { return "" }
+func (f *fileList) Set(s string) error { *f = append(*f, s); return nil }
+func (f *fileList) Get() interface{}   { return *f }
+
+type cellSizeBits int
+
+func (sz *cellSizeBits) String() string { return strconv.Itoa(int(*sz)) }
+func (sz *cellSizeBits) Set(s string) error {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	switch n {
+	case 32, 64:
+		*sz = cellSizeBits(n)
+		return nil
+	default:
+		return fmt.Errorf("%d bits cells not supported", n)
+	}
+}
+func (sz *cellSizeBits) Get() interface{} { return *sz }
+
+var (
+	noShrink    bool
+	noRawIO     bool
+	debug       bool
+	dump        bool
+	outFileName string
+	srcCellSz   = cellSizeBits(unsafe.Sizeof(vm.Cell(0)) * 8)
+	dstCellSz   = srcCellSz
+)
 
 func port1Handler(i *vm.Instance, v, port vm.Cell) error {
 	if v != 1 {
@@ -64,15 +91,16 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 	}
 }
 
-func shrinkSave(mem []vm.Cell, fileName string) error {
+// Save handler to enable shrinking of retro images
+func shrinkSave(fileName string, mem []vm.Cell, _ int) error {
 	end := vm.Cell(len(mem))
 	if len(mem) < 4 {
 		return nil
 	}
-	if here := mem[3]; *shrink && here >= 0 && here < end {
+	if here := mem[3]; !noShrink && here >= 0 && here < end {
 		end = here
 	}
-	err := vm.Save(mem[:end], *outFileName)
+	err := vm.Save(outFileName, mem[:end], int(dstCellSz))
 	if err != nil {
 		return err
 	}
@@ -81,7 +109,7 @@ func shrinkSave(mem []vm.Cell, fileName string) error {
 
 func setupIO() (raw bool, tearDown func()) {
 	var err error
-	if *rawIO {
+	if !noRawIO {
 		tearDown, err = setRawIO()
 		if err != nil {
 			return false, nil
@@ -90,11 +118,20 @@ func setupIO() (raw bool, tearDown func()) {
 	return true, tearDown
 }
 
+func newVM(name, saveName string, size, cellSize int, opts ...vm.Option) (*vm.Instance, int, error) {
+	mem, fileCells, err := vm.Load(name, size, cellSize)
+	if err != nil {
+		return nil, fileCells, err
+	}
+	i, err := vm.New(mem, saveName, opts...)
+	return i, fileCells, err
+}
+
 func atExit(i *vm.Instance, err error) {
 	if err == nil {
 		return
 	}
-	if !*debug {
+	if !debug {
 		fmt.Fprintf(os.Stderr, "\n%v\n", err)
 		os.Exit(1)
 	}
@@ -113,6 +150,7 @@ func main() {
 	// check exit condition
 	var err error
 	var i *vm.Instance
+	var fileCells int
 
 	stdout := bufio.NewWriter(os.Stdout)
 	output := vm.NewVT100Terminal(stdout, stdout.Flush, consoleSize(os.Stdout))
@@ -120,8 +158,24 @@ func main() {
 	// flush output, catch and log errors
 	defer func() {
 		output.Flush()
+		if err == nil && dump {
+			err = dumpVM(i, fileCells, os.Stdout)
+		}
 		atExit(i, err)
 	}()
+
+	var withFiles fileList
+
+	var fileName = flag.String("image", "retroImage", "Load memory image from file `filename`")
+	flag.Var(&srcCellSz, "ibits", "cell size in bits of loaded memory image")
+	var size = flag.Int("size", 100000, "image size in cells")
+	flag.BoolVar(&dump, "dump", false, "dump stacks and image upon exit, for ngarotest.py")
+	flag.Var(&withFiles, "with", "Add `filename` to the input list (can be specified multiple times)")
+	flag.BoolVar(&noShrink, "noshrink", false, "When saving, don't shrink image")
+	flag.BoolVar(&noRawIO, "noraw", false, "disable raw terminal IO")
+	flag.BoolVar(&debug, "debug", false, "enable debug diagnostics")
+	flag.StringVar(&outFileName, "o", "", "`filename` to use when saving memory image")
+	flag.Var(&dstCellSz, "obits", "cell size in bits of saved image")
 
 	flag.Parse()
 
@@ -151,34 +205,25 @@ func main() {
 		opts = append(opts, vm.Input(bufio.NewReader(os.Stdin)))
 	}
 
-	// append withFile to the input stack
-	if len(*withFile) > 0 {
+	// append -with files to input stack in reverse order so that they load
+	// in order of appearance on the command line.
+	for n := len(withFiles) - 1; n >= 0; n-- {
 		var f *os.File
-		f, err = os.Open(*withFile)
+		f, err = os.Open(withFiles[n])
 		if err != nil {
 			return
 		}
 		opts = append(opts, vm.Input(bufio.NewReader(f)))
 	}
 
-	img, fileCells, err := vm.Load(*fileName, *size)
-	if err != nil {
-		return
+	if outFileName == "" {
+		outFileName = *fileName
 	}
-	if *outFileName == "" {
-		outFileName = fileName
-	}
-	i, err = vm.New(img, *outFileName, opts...)
+	i, fileCells, err = newVM(*fileName, outFileName, *size, int(srcCellSz), opts...)
 	if err != nil {
 		return
 	}
 	if err = i.Run(); err == io.EOF {
 		err = nil
-	}
-	if *dump {
-		err = dumpVM(i, fileCells, output)
-		if err != nil {
-			return
-		}
 	}
 }

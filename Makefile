@@ -32,13 +32,13 @@ cover-asm:
 cover-vm:
 	$(GO) test $(PKG)/vm -coverprofile=cover.out && go tool cover -html=cover.out
 
-qbench: retro
+qbench: retroImage
 	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro <vm/testdata/core.rx >/dev/null
 
 retroImage: retro _misc/kernel.rx _misc/meta.rx _misc/stage2.rx
-	./retro -image vm/testdata/retroImage -with _misc/meta.rx -o retroImage <_misc/kernel.rx
-	./retro -with _misc/stage2.rx
-	
+	./retro -image vm/testdata/retroImage -ibits 32 -with _misc/meta.rx -with _misc/kernel.rx -o retroImage >/dev/null
+	./retro -with _misc/stage2.rx >/dev/null
+
 report: $(SRC)
 	@echo "=== gocyclo ===\n"
 	@gocyclo . | head

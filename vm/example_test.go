@@ -30,7 +30,8 @@ import (
 // Shows how to load an image, setup the VM with multiple readers/init code.
 func ExampleInstance_Run() {
 	imageFile := "testdata/retroImage"
-	img, _, err := vm.Load(imageFile, 50000)
+	// we know for a fact that this specific image file is 32 bits per Cell
+	img, _, err := vm.Load(imageFile, 50000, 32)
 	if err != nil {
 		panic(err)
 	}
@@ -68,7 +69,7 @@ func ExampleInstance_Run() {
 // Shows a common use of OUT port handlers.
 func ExampleBindOutHandler() {
 	imageFile := "testdata/retroImage"
-	img, _, err := vm.Load(imageFile, 0)
+	img, _, err := vm.Load(imageFile, 0, 32)
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +106,7 @@ func ExampleBindOutHandler() {
 // port 6. See http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html
 func ExampleBindWaitHandler() {
 	imageFile := "testdata/retroImage"
-	img, _, err := vm.Load(imageFile, 50000)
+	img, _, err := vm.Load(imageFile, 50000, 32)
 	if err != nil {
 		panic(err)
 	}
@@ -171,7 +172,7 @@ func ExampleBindWaitHandler() {
 // backround job, and a result handler to query and wait for the result.
 func ExampleBindWaitHandler_async() {
 	imageFile := "testdata/retroImage"
-	img, _, err := vm.Load(imageFile, 0)
+	img, _, err := vm.Load(imageFile, 0, 32)
 	if err != nil {
 		panic(err)
 	}

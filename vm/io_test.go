@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
@@ -29,11 +30,11 @@ import (
 
 func Test_io_GetEnv(t *testing.T) {
 	var b = bytes.NewBuffer(nil)
-	_, err := runImageFile(retroImage,
+	_, err := runImageFile(retroImage, imageBits,
 		vm.Output(vm.NewVT100Terminal(b, nil, nil)),
 		vm.Input(strings.NewReader(": pEnv here dup push swap getEnv cr pop puts bye ; \"PATH\" pEnv ")))
 	if err != nil {
-		panic(err)
+		t.Fatalf("%+v", err)
 	}
 	out := bytes.Split(b.Bytes(), []byte{'\n'})
 	envRetro := string(out[len(out)-2])
@@ -48,7 +49,7 @@ func Test_io_Files(t *testing.T) {
 	}
 	defer os.Chdir("..")
 	var b = bytes.NewBuffer(nil)
-	_, err = runImageFile("retroImage",
+	_, err = runImageFile("retroImage", imageBits,
 		vm.Output(vm.NewVT100Terminal(b, nil, nil)),
 		vm.Input(strings.NewReader("\"files.rx\" :include\n")))
 	if err != nil {
@@ -106,7 +107,7 @@ func Test_io_Caps(t *testing.T) {
 	}
 	assertEqualI(t, "io_Caps port 8", -1, int(i.Pop()))
 	assertEqualI(t, "io_Caps endian", 0, int(i.Pop()))
-	assertEqualI(t, "io_Caps Cell bits", 32, int(i.Pop()))
+	assertEqualI(t, "io_Caps Cell bits", 8*int(unsafe.Sizeof(vm.Cell(0))), int(i.Pop()))
 	assertEqualI(t, "io_Caps rstack", 3, int(i.Pop()))
 	assertEqualI(t, "io_Caps rstack", 1, int(i.Pop()))
 }
@@ -142,19 +143,41 @@ func Test_multireader(t *testing.T) {
 	}
 }
 
+// this test is only meaningful on 64 bits systems
+func TestLoad(t *testing.T) {
+	fn := "testLoad"
+	f, err := os.Create(fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(fn)
+	_, err = f.Write([]byte{0xff, 0xff, 0xff, 0xff}) // 32bits -1
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mem, _, err := vm.Load(fn, 0, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mem[0] != vm.Cell(-1) {
+		t.Fatalf("Expected -1, got %d", mem[0])
+	}
+}
+
 func TestSave(t *testing.T) {
 	d := "testDump"
 	img, err := asm.Assemble("Save", strings.NewReader("1 4 out 0 0 out wait 4 in"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	i, err := runImage(img, d, vm.SaveMemImage(vm.Save))
+	i, err := runImage(img, d, vm.SaveMemImage(vm.Save)) // dummy override for code coverage
 	defer os.Remove(d)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertEqualI(t, "Save", 0, int(i.Pop()))
-	saved, cells, err := vm.Load(d, 0)
+	saved, cells, err := vm.Load(d, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

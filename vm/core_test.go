@@ -29,6 +29,7 @@ import (
 type C []vm.Cell
 
 var retroImage = "testdata/retroImage"
+var imageBits = 32
 
 func runImage(img []vm.Cell, name string, opts ...vm.Option) (*vm.Instance, error) {
 	i, err := vm.New(img, name, opts...)
@@ -38,8 +39,8 @@ func runImage(img []vm.Cell, name string, opts ...vm.Option) (*vm.Instance, erro
 	return i, i.Run()
 }
 
-func runImageFile(name string, opts ...vm.Option) (*vm.Instance, error) {
-	img, _, err := vm.Load(name, 50000)
+func runImageFile(name string, bits int, opts ...vm.Option) (*vm.Instance, error) {
+	img, _, err := vm.Load(name, 50000, bits)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func runAsmImage(assembly, name string, opts ...vm.Option) (*vm.Instance, error)
 }
 
 func setup(code, stack, rstack C) *vm.Instance {
-	i, err := vm.New([]vm.Cell(code), "")
+	i, err := vm.New(code, "")
 	if err != nil {
 		panic(err)
 	}
@@ -256,7 +257,7 @@ func Test_Fib_AsmRecursive(t *testing.T) {
 
 func Test_Fib_RetroLoop(t *testing.T) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 30 fib bye\n"
-	i, _ := runImageFile(retroImage, vm.Input(strings.NewReader(fib)))
+	i, _ := runImageFile(retroImage, imageBits, vm.Input(strings.NewReader(fib)))
 	for c := len(i.Address()); c > 0; c-- {
 		i.Rpop()
 	}
@@ -310,7 +311,7 @@ func Benchmark_Fib_RetroLoop(b *testing.B) {
 	fib := ": fib [ 0 1 ] dip 1- [ dup [ + ] dip swap ] times swap drop ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		img, _, _ := vm.Load(retroImage, 50000)
+		img, _, _ := vm.Load(retroImage, 50000, imageBits)
 		i, _ := vm.New(img, retroImage,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()
@@ -322,7 +323,7 @@ func Benchmark_Fib_RetroRecursive(b *testing.B) {
 	fib := ": fib dup 2 < if; 1- dup fib swap 1- fib + ; 35 fib bye\n"
 	for c := 0; c < b.N; c++ {
 		b.StopTimer()
-		img, _, _ := vm.Load(retroImage, 50000)
+		img, _, _ := vm.Load(retroImage, 50000, imageBits)
 		i, _ := vm.New(img, retroImage,
 			vm.Input(strings.NewReader(fib)))
 		b.StartTimer()

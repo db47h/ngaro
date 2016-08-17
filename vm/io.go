@@ -162,7 +162,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			var b [1]byte
 			switch v {
 			case 1: // save image
-				err := i.memDump(i.Mem, i.imageFile)
+				err := i.memDump(i.imageFile, i.Mem, 0)
 				if err != nil {
 					return err
 				}
