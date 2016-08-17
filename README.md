@@ -69,13 +69,13 @@ Should generate a lot of output. Just check that the last lines look like this:
 
 	ok  bye
 
-## Support for 32/64 bits images on all architectures
+## Support for 32/64 bits memory images on all architectures
 
-Since v2.0.0, the Cell type (the base data type in Ngaro VM) is Go's int. This
-means that depending on the target you compile for, it will be either 32 or 64
-bits. The retro command line tool supports loading and saving retro memory
-images where Cells can be either size. For example, to quickly get started you
-can do this:
+Since v2.0.0, the default Cell type (the base data type in Ngaro VM) is Go's
+int. This means that depending on the target you compile for, it will be either
+32 or 64 bits. The retro command line tool supports loading and saving retro
+memory images where Cells can be either size. For example, to quickly get
+started you can do this:
 
 	echo "save bye" | \
 	retro -image vm/testdata/retroImage -ibits 32 -o retroImage
@@ -91,6 +91,16 @@ image file. For example, with a 64 bits retro binary, saving to 32 bits cells
 will check that written values fit in a 32 bit int. If not, it will generate an
 error.
 
+If for some reason you need a specific cell size, regardless of the target
+platform's native int size, you can force it by compiling with the tags
+`ngaro32` or `ngaro64`:
+
+	go install -tags ngaro32 github.com/db47h/ngaro/cmd/retro
+
+will force retro to use 32 bits cells, regardless of `GOOS`/`GOARCH`. Likewise,
+the `ngaro64` tag will force 64 bits cells, even on 32 bits targets (it'll be
+twice as slow though).
+
 ## Releases
 
 This project uses [semantic
@@ -101,7 +111,7 @@ Please do not use releases before v2.0.0 as there are a few known bugs in these.
 
 See the [releases page](https://github.com/db47h/ngaro/releases).
 
-For a detailed change log, check the [commit log](https://github.com/db47h/ngaro/commits/master).
+For a detailed change log, see the [commit log](https://github.com/db47h/ngaro/commits/master).
 
 ## License
 

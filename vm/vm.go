@@ -22,9 +22,6 @@ import (
 	"os"
 )
 
-// Cell is the raw type stored in a memory location.
-type Cell int
-
 const (
 	portCount   = 1024
 	dataSize    = 1024
