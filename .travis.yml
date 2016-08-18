@@ -2,7 +2,9 @@ language: go
 
 go:
     - 1.6.3
+      env: REPORT_COVERAGE=true
     - tip
+      env: REPORT_COVERAGE=false
 
 install:
     - go get github.com/pkg/errors
@@ -10,7 +12,4 @@ install:
     - go get golang.org/x/tools/cmd/cover
     - go get github.com/mattn/goveralls
 
-script:
-    - go test -v ./...
-    - go test -covermode=count -coverprofile=coverage.out ./vm
-    - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci
+script: make
