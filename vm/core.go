@@ -313,7 +313,7 @@ func (i *Instance) Run() (err error) {
 			}
 			i.PC++
 		default:
-			if op >= 0 {
+			if op >= 0 || i.opHandler == nil { // let it panic if op < 0 and no opHandler is set
 				i.rsp++
 				i.address[i.rsp] = i.rtos
 				i.rtos, i.PC = Cell(i.PC), int(op)
