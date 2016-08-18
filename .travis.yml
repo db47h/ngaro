@@ -1,10 +1,19 @@
 language: go
 
-go:
-    - 1.6.3
-      env: REPORT_COVERAGE=true
-    - tip
-      env: REPORT_COVERAGE=false
+matrix:
+    include:
+        - go: 1.4
+          os: linux
+          env: REPORT_COVERAGE=false
+        - go: 1.7
+          os: linux
+          env: REPORT_COVERAGE=true
+        - go: tip
+          os: linux
+          env: REPORT_COVERAGE=false
+    fast_finish: true
+    allow_failures:
+        - go: tip
 
 install:
     - go get github.com/pkg/errors
