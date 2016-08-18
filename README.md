@@ -97,9 +97,9 @@ platform's native int size, you can force it by compiling with the tags
 
 	go install -tags ngaro32 github.com/db47h/ngaro/cmd/retro
 
-will force retro to use 32 bits cells, regardless of `GOOS`/`GOARCH`. Likewise,
-the `ngaro64` tag will force 64 bits cells, even on 32 bits targets (it'll be
-twice as slow though).
+will build a version of retro that uses 32 bits cells, regardless of
+`GOOS`/`GOARCH`. Likewise, the `ngaro64` tag will force 64 bits cells, even on
+32 bits targets (it'll be twice as slow though).
 
 ## Releases
 

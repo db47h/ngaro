@@ -201,7 +201,9 @@ func (p *parser) scan() (tok rune, s string, v int) {
 		return tok, "", 0
 	}
 
-	if tok != scanner.Ident {
+	// we've disabled handling of '\n' as white space so that string
+	// parsing can be constrained to a single line
+	if tok != scanner.Ident && tok != '\n' {
 		p.error("Unexpected character " + strconv.QuoteRune(tok))
 		return tok, s, 0
 	}
@@ -213,15 +215,30 @@ func (p *parser) scan() (tok rune, s string, v int) {
 	}
 	// check char
 	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
-		r, _, tail, err := strconv.UnquoteChar(s[1:len(s)-1], '\'')
+		c, err := strconv.Unquote(s)
 		if err != nil {
 			p.error(err.Error() + " in character literal " + s)
 			return scanner.Int, s, 0
 		}
-		if len(tail) > 0 {
-			p.error("Illegal character literal " + s)
+		return scanner.Int, s, int([]rune(c)[0])
+	}
+	// check string
+	if len(s) >= 2 && s[0] == '"' {
+		for s[len(s)-1] != '"' {
+			tok = p.s.Scan()
+			if tok != scanner.Ident {
+				p.error("Unterminated string " + s)
+				s += "\""
+				break
+			}
+			s += " " + p.s.TokenText()
 		}
-		return scanner.Int, s, int(r)
+		t, err := strconv.Unquote(s)
+		if err != nil {
+			p.error(err.Error() + " in string " + s)
+			return scanner.String, s, 0
+		}
+		return scanner.String, t, 0
 	}
 	// constant ?
 	c, ok := p.consts[s]
@@ -237,9 +254,11 @@ func (p *parser) scan() (tok rune, s string, v int) {
 func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 	// state:
 	// 0: accept anything
-	// 1: need integer, const or address argument (lit, loop and jumps)
+	// 1: need integer, const or label argument (lit, loop and jumps)
 	// 2: accept integer or const (for .org directive)
 	// 3: accept integer or const (for .equ value)
+	// 4: accept integer or const (for .opcode)
+	// 5: accept integer, const, label or string argument
 	var state int
 
 	p.s.Init(r)
@@ -253,6 +272,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 	p.s.IsIdentRune = isIdentRune
 	p.s.Mode = scanner.ScanIdents
 	p.s.Filename = name
+	p.s.Whitespace &^= 1 << '\n'
 
 	for tok, s, v := p.scan(); !p.abort() && tok != scanner.EOF; tok, s, v = p.scan() {
 	s: // now we only have ints or idents
@@ -272,10 +292,21 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 				// implicit lit
 				p.write(vm.OpLit)
 				fallthrough
-			default: // (1)
+			default: // (1 || 5)
 				// argument
 				p.write(vm.Cell(v))
 			}
+			state = 0
+		case scanner.String:
+			if state != 5 {
+				p.error("string can only be used after a .dat directive")
+				state = 0
+				break s
+			}
+			for _, c := range []byte(s) {
+				p.write(vm.Cell(c))
+			}
+			p.write(0)
 			state = 0
 		case scanner.Ident:
 			switch s[0] {
@@ -314,7 +345,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 							nil,
 						}
 					}
-				case 1:
+				case 1, 5:
 					p.makeLabelRef(s)
 					p.write(0)
 					state = 0
@@ -334,11 +365,11 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 				case ".org":
 					state = 2
 				case ".dat":
-					state = 1
+					state = 5
 				case ".equ", ".opcode":
 					t, ts, _ := p.scan()
 					if t != scanner.Ident {
-						p.error("Invalid constant identifier: " + p.s.TokenText())
+						p.error("Invalid constant or opcode identifier: " + p.s.TokenText())
 						// just eat up next token and keep parsing
 						p.scan()
 						break s
@@ -358,12 +389,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 						state = 4
 					}
 				default:
-					// implicit .dat
-					if c, ok := p.consts[s[1:]]; ok {
-						p.write(vm.Cell(c.address))
-					} else {
-						p.error("Unknown dot directive: " + s)
-					}
+					p.error("Unknown dot directive: " + s)
 				}
 			default:
 				if s == "(" {
@@ -372,7 +398,7 @@ func (p *parser) Parse(name string, r io.Reader) ([]vm.Cell, error) {
 					}
 					break s
 				}
-				if state >= 2 {
+				if state != 5 && state >= 2 {
 					p.error("Unexpected label as directive argument: " + s)
 					// attempt to continue parsing with state = 0
 					state = 0

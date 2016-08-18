@@ -181,14 +181,20 @@
 //
 //	.dat <value>
 //
-// Will compile the specified integer value, named constant or character literal
-// as-is (i.e. with no implicit "lit"). This is primarily used used for data
-// storage structures:
+// Will compile the specified integer value, named constant, character literal
+// or string as-is (i.e. with no implicit "lit"). This is primarily used used
+// for data storage structures:
 //
 //	:table	.dat 65
 //		.dat 'B'
+//		.dat "Hello,\n      world!"
 //
-// The cells at addresses table+0 and table+1 will contain 65 and 66 respectively.
+// The cells at addresses table+0 and table+1 will contain 65 and 66
+// respectively.
+//
+// Strings are any text enclosed between a pair of double quotes ("). They are
+// encoded as utf-8, one byte per Cell and zero terminated. Go escape sequences
+// are supported. Strings cannot span multiple lines.
 //
 //	.opcode <identifier> <value>
 //

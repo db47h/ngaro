@@ -17,6 +17,7 @@
 package asm_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -85,6 +86,8 @@ func TestAssemble_errors2(t *testing.T) {
 				"cst_label:1:1: Previous use of bar\n" +
 				"cst_label:1:26: Constant bar already used as a label\n" +
 				"cst_label:1:16: Previous use of bar"},
+		{"unterm_str", ".dat \"hello\nfoo", "unterm_str:1:12: Unterminated string \"hello\nunterm_str:2:1: Undefined label foo"},
+		{"bad_string", ".dat \"hello \\k world\"", "bad_string:1:16: invalid syntax in string \"hello \\k world\""},
 	}
 
 	for _, i := range data {
@@ -96,5 +99,37 @@ func TestAssemble_errors2(t *testing.T) {
 		if err.Error() != i.err {
 			t.Errorf("Test %s:\nExpected: %v\n     Got: %v", i.name, i.err, err)
 		}
+	}
+}
+
+func Test_strings(t *testing.T) {
+	_, err := asm.Assemble("testStrings", strings.NewReader(`
+		"1234"
+		lit "1234"
+		.org "1234"
+		.opcode "12345"
+		.equ TOTO "123456"
+		`))
+	if err == nil {
+		t.Fatal("Unexpected nil error")
+	}
+	exp := `testStrings:2:3: string can only be used after a .dat directive
+testStrings:3:7: string can only be used after a .dat directive
+testStrings:4:8: string can only be used after a .dat directive
+testStrings:5:11: Invalid constant or opcode identifier: "12345"
+testStrings:6:13: string can only be used after a .dat directive`
+	if s := err.Error(); s != exp {
+		t.Fatalf("\nExpected:\n%s\nGot:\n%s", exp, s)
+	}
+	img, err := asm.Assemble("testStrings", strings.NewReader(`
+		.dat "hello, world "
+		`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := fmt.Sprintf("%v", img)
+	exp = "[104 101 108 108 111 44 32 119 111 114 108 100 32 0]"
+	if exp != s {
+		t.Fatalf("\nExpected:\n%s\nGot:\n%s", exp, s)
 	}
 }

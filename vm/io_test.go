@@ -61,7 +61,7 @@ func Test_io_Files(t *testing.T) {
 
 	// try to open a file with a dummy mode
 	i, err := runAsmImage(`jump start
-		:fileName .dat 'r' .dat 'e' .dat 't' .dat 'r' .dat 'o' .dat 'I' .dat 'm' .dat 'a' .dat 'g' .dat 'e' .dat 0
+		:fileName .dat "retroImage"
 		.org 32
 		:io dup push out 0 0 out wait pop in ;
 		:start
