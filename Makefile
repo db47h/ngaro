@@ -52,6 +52,7 @@ qbench: retroImage
 retroImage: retro _misc/kernel.rx _misc/meta.rx _misc/stage2.rx
 	./retro -image vm/testdata/retroImage -ibits 32 -with _misc/meta.rx -with _misc/kernel.rx -o retroImage >/dev/null
 	./retro -with _misc/stage2.rx >/dev/null
+	if [ -e _misc/stage3.rx ]; then ./retro -with _misc/stage3.rx >/dev/null; fi
 
 report: $(SRC)
 	@echo "=== gocyclo ===\n"

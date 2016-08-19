@@ -8,7 +8,8 @@ import (
 	"github.com/db47h/ngaro/asm"
 )
 
-// Shows off some of the assembler features.
+// Shows off some of the assembler features (although the example assembly program
+// is complete non-sense).
 func ExampleAssemble() {
 	code := `
 		( this is a comment. brackets must be separated by spaces )
