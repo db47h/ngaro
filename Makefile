@@ -28,7 +28,7 @@ ifeq ($(REPORT_COVERAGE),true)
 	@grep -v ^mode coverage0.cov >> coverage.cov
 	@grep -v ^mode coverage1.cov >> coverage.cov
 	$$(go env GOPATH | awk 'BEGIN{FS=":"} {print $1}')/bin/goveralls -coverprofile=coverage.cov -service=travis-ci
-	$(RM) coverage0.cov coverage1.cov coverage.cov
+	@$(RM) coverage0.cov coverage1.cov coverage.cov
 else
 	$(GO) test -v $(PKG)/...
 endif
@@ -37,11 +37,14 @@ endif
 bench:
 	$(GO) test -v $(PKG)/vm -run DONOTRUNTESTS -bench .
 
-cover-asm:
-	$(GO) test $(PKG)/asm -coverprofile=cover.out && go tool cover -html=cover.out
-
-cover-vm:
-	$(GO) test $(PKG)/vm -coverprofile=cover.out && go tool cover -html=cover.out
+cover:
+	$(GO) test $(PKG)/vm -covermode=count -coverprofile=coverage0.cov
+	$(GO) test $(PKG)/asm -covermode=count -coverprofile=coverage1.cov
+	@echo "mode: count" > coverage.cov
+	@grep -v ^mode coverage0.cov >> coverage.cov
+	@grep -v ^mode coverage1.cov >> coverage.cov
+	$(GO) tool cover -html coverage.cov
+	@$(RM) coverage0.cov coverage1.cov coverage.cov
 
 qbench: retroImage
 	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro <vm/testdata/core.rx >/dev/null

@@ -143,15 +143,49 @@ func Test_multireader(t *testing.T) {
 	}
 }
 
-// this test is only meaningful on 64 bits systems
+func Test_port8(t *testing.T) {
+	var flushed bool
+	flush := func() error {
+		flushed = true
+		return nil
+	}
+	size := func() (int, int) { return 42, 24 }
+	i, err := runAsmImage(`jump start
+		.org 32
+		:io dup push out 0 0 out wait pop in ;
+		:start
+		1 3 io drop ( flush )
+		-11 5 io
+		-12 5 io
+		-1 1 2 io drop
+		0 0 1 8 io drop
+		0 2 8 io drop
+		0 3 8 io drop
+		`,
+		"port8",
+		vm.Output(vm.NewVT100Terminal(bytes.NewBuffer(nil), flush, size)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !flushed {
+		t.Fatal("Flush failed")
+	}
+	if i.Tos != 24 {
+		t.Fatalf("Expected height: 24, got: %d", i.Tos)
+	}
+	if i.Nos() != 42 {
+		t.Fatalf("Expected width: 42, got: %d", i.Nos())
+	}
+}
+
 func TestLoad(t *testing.T) {
-	fn := "testLoad"
+	fn := "testdata/testLoad"
 	f, err := os.Create(fn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(fn)
-	_, err = f.Write([]byte{0xff, 0xff, 0xff, 0xff}) // 32bits -1
+	_, err = f.Write([]byte{0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0x00, 0x00})
 	f.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -163,21 +197,74 @@ func TestLoad(t *testing.T) {
 	if mem[0] != vm.Cell(-1) {
 		t.Fatalf("Expected -1, got %d", mem[0])
 	}
+	// force failure if vm.Cell is 32 bits
+	if unsafe.Sizeof(vm.Cell(0)) == 4 {
+		_, _, err = vm.Load(fn, 0, 64)
+		exp := "load error: 64 bits value 8589934591 at memory location 0 too large"
+		if err == nil || err.Error() != exp {
+			t.Fatal(err)
+		}
+	}
 }
 
-func TestSave(t *testing.T) {
-	d := "testDump"
+func TestSave_64(t *testing.T) {
+	d := "testdata/testDump64"
 	img, err := asm.Assemble("Save", strings.NewReader("1 4 out 0 0 out wait 4 in"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	i, err := runImage(img, d, vm.SaveMemImage(vm.Save)) // dummy override for code coverage
 	defer os.Remove(d)
+	sf := func(fileName string, mem []vm.Cell, cellBits int) error {
+		return vm.Save(fileName, mem, 64)
+	}
+	i, err := runImage(img, d, vm.SaveMemImage(sf))
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertEqualI(t, "Save", 0, int(i.Pop()))
-	saved, cells, err := vm.Load(d, 0, 0)
+	saved, cells, err := vm.Load(d, 0, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var same = true
+	for n := range img {
+		if img[n] != saved[n] {
+			same = false
+			break
+		}
+	}
+	if !same {
+		t.Fatalf("Save image error:\nexpected %v, got %v", img, saved[:cells])
+	}
+}
+
+func TestSave_32(t *testing.T) {
+	d := "testdata/testDump32"
+	img, err := asm.Assemble("Save", strings.NewReader("jump start .dat 0 :start 1 4 out 0 0 out wait 4 in"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(d)
+	sf := func(fileName string, mem []vm.Cell, cellBits int) error {
+		return vm.Save(fileName, mem, 32)
+	}
+	// force failure if vm.Cell is 64 bits
+	if unsafe.Sizeof(vm.Cell(0)) == 8 {
+		x := int64(1)
+		img[2] = vm.Cell(x << 32)
+		_, err := runImage(img, d, vm.SaveMemImage(sf))
+		exp := "save error: 64 bits value 4294967296 at memory location 2 too large"
+		if err == nil || err.Error() != exp {
+			t.Fatalf("\nExpected: %s\nGot: %v", exp)
+		}
+		img[2] = 0
+	}
+	i, err := runImage(img, d, vm.SaveMemImage(sf))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqualI(t, "Save", 0, int(i.Pop()))
+	saved, cells, err := vm.Load(d, 0, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
