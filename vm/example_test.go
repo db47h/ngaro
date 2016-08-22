@@ -263,7 +263,7 @@ func ExampleBindOpcodeHandler() {
 	handler := func(i *vm.Instance, opcode vm.Cell) error {
 		switch opcode {
 		case -1:
-			i.Tos = fib(i.Tos)
+			i.SetTos(fib(i.Tos()))
 			return nil
 		default:
 			return fmt.Errorf("Unsupported opcode value %d", opcode)

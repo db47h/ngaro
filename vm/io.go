@@ -23,11 +23,9 @@ import (
 	"unsafe"
 )
 
-// Terminal encapsulates methods provided by a terminal output. Apart from
-// WriteRune, all methods can be implemented as no-ops if the underlying output
-// does not support the corresponding functionality.
-//
-// WriteRune writes a single Unicode code point, returning the number of bytes written and any error.
+// Terminal encapsulates methods provided by a terminal output. All methods can
+// be implemented as no-ops if the underlying output does not support the
+// corresponding functionality.
 //
 // Flush writes any buffered unwritten output.
 //
@@ -78,7 +76,7 @@ func (i *Instance) openfile(name string, mode Cell) Cell {
 	return i.fid
 }
 
-// PushInput sets r as the current input RuneReader for the VM. When this reader
+// PushInput sets r as the current input io.Reader for the VM. When this reader
 // reaches EOF, the previously pushed reader will be used.
 func (i *Instance) PushInput(r io.Reader) {
 	// dont use a multi reader unless necessary
@@ -175,7 +173,7 @@ func (i *Instance) Wait(v, port Cell) error {
 				}
 				i.PushInput(f)
 			case -1: // open file
-				fd := i.openfile(DecodeString(i.Mem, i.data[i.sp]), i.Tos)
+				fd := i.openfile(DecodeString(i.Mem, i.data[i.sp]), i.tos)
 				i.Drop2()
 				i.WaitReply(fd, 4)
 			case -2: // read byte
@@ -187,7 +185,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			case -3: // write byte
 				var l int
 				b[0] = byte(i.data[i.sp])
-				f := i.files[i.Tos]
+				f := i.files[i.tos]
 				i.Drop2()
 				if f != nil {
 					l, _ = f.Write(b[:])
@@ -212,7 +210,7 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.WaitReply(Cell(p), 4)
 			case -6: // seek
 				var p int64
-				o, f := i.data[i.sp], i.files[i.Tos]
+				o, f := i.data[i.sp], i.files[i.tos]
 				i.Drop2()
 				if f != nil {
 					p, _ = f.Seek(int64(o), os.SEEK_SET)
@@ -260,7 +258,7 @@ func (i *Instance) Wait(v, port Cell) error {
 				i.PC = len(i.Mem) - 1 // will be incremented when returning
 			case -10:
 				// environment query
-				src, dst := i.Tos, i.data[i.sp]
+				src, dst := i.tos, i.data[i.sp]
 				i.Drop2()
 				EncodeString(i.Mem, dst, os.Getenv(DecodeString(i.Mem, src)))
 				i.Ports[5] = 0
@@ -305,7 +303,7 @@ func (i *Instance) Wait(v, port Cell) error {
 		if v := i.Ports[8]; v != 0 && i.output != nil {
 			switch i.Ports[8] {
 			case 1:
-				i.output.MoveCursor(int(i.Tos), int(i.data[i.sp]))
+				i.output.MoveCursor(int(i.tos), int(i.data[i.sp]))
 				i.Drop2()
 			case 2:
 				i.output.FgColor(int(i.Pop()))

@@ -170,7 +170,7 @@ func Test_port8(t *testing.T) {
 	if !flushed {
 		t.Fatal("Flush failed")
 	}
-	if i.Tos != 24 {
+	if i.Tos() != 24 {
 		t.Fatalf("Expected height: 24, got: %d", i.Tos)
 	}
 	if i.Nos() != 42 {

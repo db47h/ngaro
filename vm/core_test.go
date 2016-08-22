@@ -220,7 +220,7 @@ func fibFunc(v vm.Cell) vm.Cell {
 func fibHandler(i *vm.Instance, opcode vm.Cell) error {
 	switch opcode {
 	case -1:
-		i.Tos = fibFunc(i.Tos)
+		i.SetTos(fibFunc(i.Tos()))
 		return nil
 	default:
 		return fmt.Errorf("Unsupported opcode value %d", opcode)
@@ -364,25 +364,25 @@ func TestVM_Drop2(t *testing.T) {
 	assertEqualI(t, test, 0, int(i.Depth()))
 	i.Drop2()
 	assertEqualI(t, test, 0, int(i.Depth()))
-	assertEqualI(t, test, 0, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Tos()))
 	assertEqualI(t, test, 0, int(i.Nos()))
 	i.Push(4)
 	i.Drop2()
 	assertEqualI(t, test, 0, int(i.Depth()))
-	assertEqualI(t, test, 0, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Tos()))
 	assertEqualI(t, test, 0, int(i.Nos()))
 	i.Push(4)
 	i.Push(7)
 	i.Drop2()
 	assertEqualI(t, test, 0, int(i.Depth()))
-	assertEqualI(t, test, 0, int(i.Tos))
+	assertEqualI(t, test, 0, int(i.Tos()))
 	assertEqualI(t, test, 0, int(i.Nos()))
 	i.Push(4)
 	i.Push(7)
 	i.Push(8)
 	i.Drop2()
 	assertEqualI(t, test, 1, int(i.Depth()))
-	assertEqualI(t, test, 4, int(i.Tos))
+	assertEqualI(t, test, 4, int(i.Tos()))
 	assertEqualI(t, test, 0, int(i.Nos()))
 }
 
@@ -406,7 +406,7 @@ func TestVM_inHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertEqualI(t, "VM_inHandler", 42, int(i.Tos))
+	assertEqualI(t, "VM_inHandler", 42, int(i.Tos()))
 }
 
 func TestVM_InstructionCount(t *testing.T) {

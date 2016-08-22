@@ -81,7 +81,7 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 		if v != 1 {
 			return i.Wait(v, port)
 		}
-		t := i.Tos // save TOS
+		t := i.Tos() // save TOS
 		e = i.Wait(v, port)
 		if e == nil && t == 8 && i.Ports[port] == 0 {
 			// the vm has written a backspace, erase char under cursor

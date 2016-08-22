@@ -53,7 +53,22 @@ const (
 	OpWait
 )
 
-// Nos returns the Next item On data Stack.
+// Tos returns the value of the Top item On the data Stack. Always returns 0 if
+// Instance.Depth() is 0.
+func (i *Instance) Tos() Cell {
+	return i.tos
+}
+
+// SetTos sets (changes) the value of the Top item On the data Stack. If the stack
+// is empty, this function will be a no-op (i.e. Tos() will return 0).
+func (i *Instance) SetTos(v Cell) {
+	if i.Depth() > 0 {
+		i.tos = v
+	}
+}
+
+// Nos returns the value of the Next item On the data Stack. Always returns 0 if
+// Instance.Depth() is less than 2.
 func (i *Instance) Nos() Cell {
 	return i.data[i.sp]
 }
@@ -65,7 +80,7 @@ func (i *Instance) Depth() int {
 
 // Drop removes the top item from the data stack.
 func (i *Instance) Drop() {
-	i.Tos = i.data[i.sp]
+	i.tos = i.data[i.sp]
 	if i.sp != 0 {
 		i.sp--
 	}
@@ -77,19 +92,19 @@ func (i *Instance) Drop2() {
 	if i.sp < 0 {
 		i.sp = 0
 	}
-	i.Tos = i.data[i.sp+1] // NOTE: this works because i.data[0:2] is always 0
+	i.tos = i.data[i.sp+1] // NOTE: this works because i.data[0:2] is always 0
 }
 
 // Push pushes the argument on top of the data stack.
 func (i *Instance) Push(v Cell) {
 	i.sp++
-	i.data[i.sp], i.Tos = i.Tos, v
+	i.data[i.sp], i.tos = i.tos, v
 }
 
 // Pop pops the value on top of the data stack and returns it.
 func (i *Instance) Pop() Cell {
-	tos := i.Tos
-	i.Tos = i.data[i.sp]
+	tos := i.tos
+	i.tos = i.data[i.sp]
 	if i.sp != 0 {
 		i.sp--
 	}
@@ -127,7 +142,7 @@ func (i *Instance) Rpop() Cell {
 //	fmt.Sprintf("%+v", err)
 //
 // The VM will not error on stack underflows. i.e. drop always succeeds, and
-// both Instance.Tos and Instance.Nos() on an empty stack always return 0. This
+// both Instance.Tos() and Instance.Nos() on an empty stack always return 0. This
 // is a design choice that enables end users to use the VM interactively with
 // Retro without crashes on stack underflows.
 //
@@ -162,13 +177,13 @@ func (i *Instance) Run() (err error) {
 			i.PC += 2
 		case OpDup:
 			i.sp++
-			i.data[i.sp] = i.Tos
+			i.data[i.sp] = i.tos
 			i.PC++
 		case OpDrop:
 			i.Drop()
 			i.PC++
 		case OpSwap:
-			i.Tos, i.data[i.sp] = i.data[i.sp], i.Tos
+			i.tos, i.data[i.sp] = i.data[i.sp], i.tos
 			i.PC++
 		case OpPush:
 			i.Rpush(i.Pop())
@@ -177,9 +192,9 @@ func (i *Instance) Run() (err error) {
 			i.Push(i.Rpop())
 			i.PC++
 		case OpLoop:
-			v := i.Tos - 1
+			v := i.tos - 1
 			if v > 0 {
-				i.Tos = v
+				i.tos = v
 				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.Drop()
@@ -190,92 +205,92 @@ func (i *Instance) Run() (err error) {
 		case OpReturn:
 			i.PC = int(i.Rpop() + 1)
 		case OpGtJump:
-			if i.data[i.sp] > i.Tos {
+			if i.data[i.sp] > i.tos {
 				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpLtJump:
-			if i.data[i.sp] < i.Tos {
+			if i.data[i.sp] < i.tos {
 				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpNeJump:
-			if i.data[i.sp] != i.Tos {
+			if i.data[i.sp] != i.tos {
 				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpEqJump:
-			if i.data[i.sp] == i.Tos {
+			if i.data[i.sp] == i.tos {
 				i.PC = int(i.Mem[i.PC+1])
 			} else {
 				i.PC += 2
 			}
 			i.Drop2()
 		case OpFetch:
-			i.Tos = i.Mem[i.Tos]
+			i.tos = i.Mem[i.tos]
 			i.PC++
 		case OpStore:
-			i.Mem[i.Tos] = i.data[i.sp]
+			i.Mem[i.tos] = i.data[i.sp]
 			i.Drop2()
 			i.PC++
 		case OpAdd:
 			rhs := i.Pop()
-			i.Tos += rhs
+			i.tos += rhs
 			i.PC++
 		case OpSub:
 			rhs := i.Pop()
-			i.Tos -= rhs
+			i.tos -= rhs
 			i.PC++
 		case OpMul:
 			rhs := i.Pop()
-			i.Tos *= rhs
+			i.tos *= rhs
 			i.PC++
 		case OpDimod:
-			lhs, rhs := i.data[i.sp], i.Tos
+			lhs, rhs := i.data[i.sp], i.tos
 			i.data[i.sp] = lhs % rhs
-			i.Tos = lhs / rhs
+			i.tos = lhs / rhs
 			i.PC++
 		case OpAnd:
 			rhs := i.Pop()
-			i.Tos &= rhs
+			i.tos &= rhs
 			i.PC++
 		case OpOr:
 			rhs := i.Pop()
-			i.Tos |= rhs
+			i.tos |= rhs
 			i.PC++
 		case OpXor:
 			rhs := i.Pop()
-			i.Tos ^= rhs
+			i.tos ^= rhs
 			i.PC++
 		case OpShl:
 			rhs := i.Pop()
-			i.Tos <<= uint8(rhs)
+			i.tos <<= uint8(rhs)
 			i.PC++
 		case OpShr:
 			rhs := i.Pop()
-			i.Tos >>= uint8(rhs)
+			i.tos >>= uint8(rhs)
 			i.PC++
 		case OpZeroExit:
-			if i.Tos == 0 {
+			if i.tos == 0 {
 				i.PC = int(i.Rpop() + 1)
 				i.Drop()
 			} else {
 				i.PC++
 			}
 		case OpInc:
-			i.Tos++
+			i.tos++
 			i.PC++
 		case OpDec:
-			i.Tos--
+			i.tos--
 			i.PC++
 		case OpIn:
-			port := i.Tos
+			port := i.tos
 			if h := i.inH[port]; h != nil {
 				i.Drop()
 				if err = h(i, port); err != nil {
@@ -284,11 +299,11 @@ func (i *Instance) Run() (err error) {
 			} else {
 				// we're not calling i.In so that we can optimize out a Pop/Push
 				// sequence
-				i.Tos, i.Ports[port] = i.Ports[port], 0
+				i.tos, i.Ports[port] = i.Ports[port], 0
 			}
 			i.PC++
 		case OpOut:
-			v, port := i.data[i.sp], i.Tos
+			v, port := i.data[i.sp], i.tos
 			i.Drop2()
 			if h := i.outH[port]; h != nil {
 				err = h(i, v, port)

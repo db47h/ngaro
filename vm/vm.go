@@ -33,7 +33,7 @@ type Instance struct {
 	PC        int    // Program Counter (aka. Instruction Pointer)
 	Mem       []Cell // Memory image
 	Ports     []Cell // I/O ports
-	Tos       Cell   // cell on top of stack
+	tos       Cell   // cell on top of stack
 	sp        int
 	rsp       int
 	rtos      Cell
@@ -94,7 +94,7 @@ func AddressSize(size int) Option {
 	}
 }
 
-// Input pushes the given RuneReader on top of the input stack.
+// Input pushes the given io.Reader on top of the input stack.
 func Input(r io.Reader) Option {
 	return func(i *Instance) error { i.PushInput(r); return nil }
 }
@@ -248,7 +248,7 @@ func (i *Instance) Data() []Cell {
 	if i.sp < 1 {
 		return nil
 	}
-	return append(i.data[2:i.sp+1], i.Tos)
+	return append(i.data[2:i.sp+1], i.tos)
 }
 
 // Address returns the address stack. Note that value changes will be reflected
