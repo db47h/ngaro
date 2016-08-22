@@ -84,7 +84,7 @@
 //	  be converted to an integer literal.
 //	- If it is a Go character literal between single quotes, it will be converted to
 //	  the corresponding integer literal. Watch out with unicode chars: they will be
-//	  convberted to the proper rune (int32), but they are not natively supported by
+//	  converted to the proper rune (int32), but they are not natively supported by
 //	  the VM I/O code.
 //	- If a token is the name of a defined constant, it will be replaced internally by
 //	  the constant's value and can be used anywhere an integer literal is expected.
