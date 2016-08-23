@@ -110,7 +110,8 @@ func ExampleDisassemble() {
 		pop
 	:1  loop 0-		( local label back )
 		swap drop ;
-		lit		( lit deliberately unterminated at end of image for testing purposes )
+		lit		( lit deliberately unterminated at end of image for testing purposes.
+		 		  should disassemble unequivocally as .dat 1 )
 		`
 	img, err := asm.Assemble("fib", strings.NewReader(fibS))
 	if err != nil {
@@ -148,7 +149,7 @@ func ExampleDisassemble() {
 	//   17	swap
 	//   18	drop
 	//   19	;
-	//   20	???
+	//   20	.dat 1
 	// Partial disassembly with DisassembleAll:
 	//         15	loop 8
 	//         17	swap

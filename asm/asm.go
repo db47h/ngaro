@@ -112,7 +112,9 @@ func Disassemble(i []vm.Cell, pc int, w io.Writer) (next int, err error) {
 			_, err = w.Write(b)
 			return pc + 1, err
 		}
-		b = append(b, "???"...)
+		// unterminated, it must be a .dat ...
+		b = append(b[:0], ".dat "...)
+		b = strconv.AppendInt(b, int64(int(op)), 10)
 	}
 	_, err = w.Write(b)
 	return pc, err
