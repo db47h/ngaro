@@ -21,7 +21,6 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/db47h/ngaro/internal/ngi"
 	"github.com/db47h/ngaro/vm"
 )
 
@@ -79,47 +78,59 @@ func Assemble(name string, r io.Reader) (img []vm.Cell, err error) {
 // Disassemble writes a disassembly of the cells in the given slice at position
 // pc to the specified io.Writer and returns the position of the next valid
 // opcode and any write error.
+//
+// Note that some instructions will Disassemble like:
+//
+//	.dat 860	( call 860 )
+//
+// This is because the cell value is 860 and  disassenbler cannot determine if
+// it's an implicit call or raw data. Disassembling it this way reminds you that
+// this could be a call, while allowing the output to be passed as-is to the
+// assembler.
 func Disassemble(i []vm.Cell, pc int, w io.Writer) (next int, err error) {
-	ew, _ := w.(*ngi.ErrWriter)
-	if ew == nil {
-		ew = ngi.NewErrWriter(w)
-	}
-
 	op := i[pc]
+	b := make([]byte, 0, 40)
 	if op < 0 || op >= vm.Cell(len(opcodes)) {
-		io.WriteString(ew, "call ")
-		io.WriteString(ew, strconv.Itoa(int(op)))
+		b = append(b, ".dat "...)
+		b = strconv.AppendInt(b, int64(int(op)), 10)
+		b = append(b, "\t( call "...)
+		b = strconv.AppendInt(b, int64(int(op)), 10)
+		b = append(b, ' ', ')')
 	} else if op != vm.OpLit {
-		io.WriteString(ew, opcodes[op][0])
+		b = append(b, opcodes[op][0]...)
 	}
 	pc++
 	switch op {
 	case vm.OpLoop, vm.OpJump, vm.OpGtJump, vm.OpLtJump, vm.OpNeJump, vm.OpEqJump:
 		if pc < len(i) {
-			ew.Write([]byte{' '})
+			b = append(b, ' ')
 		}
 		fallthrough
 	case vm.OpLit:
 		if pc < len(i) {
-			io.WriteString(ew, strconv.Itoa(int(i[pc])))
-			return pc + 1, ew.Err
+			b = strconv.AppendInt(b, int64(int(i[pc])), 10)
+			_, err = w.Write(b)
+			return pc + 1, err
 		}
-		io.WriteString(ew, "???")
+		b = append(b, "???"...)
 	}
-	return pc, ew.Err
+	_, err = w.Write(b)
+	return pc, err
 }
 
 // DisassembleAll writes a disassembly of all cells in the given slice to
 // the specified io.Writer. The base argument specifies the real address of the
 // frist cell (i[0]). It will return any write error.
 func DisassembleAll(i []vm.Cell, base int, w io.Writer) error {
-	ew := ngi.NewErrWriter(w)
 	for pc := 0; pc < len(i); {
-		fmt.Fprintf(ew, "% 10d\t", base+pc)
-		pc, _ = Disassemble(i, pc, ew)
-		ew.Write([]byte{'\n'})
-		if ew.Err != nil {
-			return ew.Err
+		_, err := fmt.Fprintf(w, "% 10d\t", base+pc)
+		if err != nil {
+			return err
+		}
+		pc, _ = Disassemble(i, pc, w)
+		_, err = w.Write([]byte{'\n'})
+		if err != nil {
+			return err
 		}
 	}
 	return nil

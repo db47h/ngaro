@@ -192,11 +192,13 @@ func isIdentRune(ch rune, i int) bool {
 	return unicode.IsLetter(ch) || unicode.IsSymbol(ch) || unicode.IsPunct(ch) || unicode.IsDigit(ch)
 }
 
-// Scan does transforms results from scanner.Scan:
-// Our assembly is forth like; words can start with and contain digits,
-// symbols, punctuation and so on. The stdlib scanner can only return
-// tokens, so we need to convert back to Ints when required.
-// Chars are only a special case of ints.
+// Scan does transform results from scanner.Scan:
+// Our assembly is forth like; words (identifiers) can start with digits,
+// symbols, punctuation and so on. In this case, the stdlib scanner sees almost
+// everything, including numbers, as identifiers, so we need to convert back to
+// Ints when required.
+//
+// This function also converts chars to ints.
 func (p *parser) scan() (tok rune, s string, v int) {
 	tok = p.s.Scan()
 	s = p.s.TokenText()

@@ -22,7 +22,7 @@ func ExampleAssemble() {
 		SOMECONST   ( const literal )
 		drop
 		drop
-		foo			( implicit call )
+		foo			( implicit call to label foo )
 		pop
 		lit table	( address of table )
 		'x'			( char literal, compiles as lit 'x' )
@@ -58,7 +58,7 @@ func ExampleAssemble() {
 	//          3	42
 	//          5	drop
 	//          6	drop
-	//          7	call 32
+	//          7	.dat 32	( call 32 )
 	//          8	pop
 	//          9	40
 	//         11	120
@@ -82,18 +82,18 @@ func ExampleAssemble() {
 	//         30	nop
 	//         31	nop
 	//         32	42
-	//         34	call 37
+	//         34	.dat 37	( call 37 )
 	//         35	drop
 	//         36	;
 	//         37	1+
 	//         38	;
-	//         39	call -1
-	//         40	call -100
-	//         41	call 438
-	//         42	call 39
-	//         43	call 8243
-	//         44	call 42
-	//         45	call 32
+	//         39	.dat -1	( call -1 )
+	//         40	.dat -100	( call -100 )
+	//         41	.dat 438	( call 438 )
+	//         42	.dat 39	( call 39 )
+	//         43	.dat 8243	( call 8243 )
+	//         44	.dat 42	( call 42 )
+	//         45	.dat 32	( call 32 )
 }
 
 // Disassemble is pretty straightforward. Here we Disassemble a hand crafted
