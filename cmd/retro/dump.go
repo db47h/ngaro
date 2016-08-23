@@ -20,29 +20,39 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/db47h/ngaro/internal/ngi"
 	"github.com/db47h/ngaro/vm"
 )
 
-func dumpSlice(w *ngi.ErrWriter, a []vm.Cell) error {
+func dumpSlice(w io.Writer, prefix byte, a []vm.Cell) error {
+	var err error
 	l := len(a) - 1
+	b := make([]byte, 0, 14)
+	b = append(b, prefix)
 	if l >= 0 {
 		for i := 0; i < l; i++ {
-			io.WriteString(w, strconv.Itoa(int(a[i])))
-			w.Write([]byte{' '})
+			b = strconv.AppendInt(b, int64(int(a[i])), 10)
+			b = append(b, ' ')
+			_, err = w.Write(b)
+			if err != nil {
+				return err
+			}
+			b = b[:0]
 		}
-		io.WriteString(w, strconv.Itoa(int(a[l])))
+		b = strconv.AppendInt(b, int64(int(a[l])), 10)
 	}
-	return w.Err
+	_, err = w.Write(b)
+	return err
 }
 
 // Dump dumps the virtual machine stacks and memory image to the specified io.Writer.
 func dumpVM(i *vm.Instance, size int, w io.Writer) error {
-	ew := ngi.NewErrWriter(w)
-	ew.Write([]byte{'\x1C'})
-	dumpSlice(ew, i.Data())
-	ew.Write([]byte{'\x1D'})
-	dumpSlice(ew, i.Address())
-	ew.Write([]byte{'\x1D'})
-	return dumpSlice(ew, i.Mem[:size])
+	err := dumpSlice(w, '\x1C', i.Data())
+	if err != nil {
+		return err
+	}
+	err = dumpSlice(w, '\x1D', i.Address())
+	if err != nil {
+		return err
+	}
+	return dumpSlice(w, '\x1D', i.Mem[:size])
 }
