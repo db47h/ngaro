@@ -21,6 +21,8 @@ import (
 	"os"
 	"time"
 	"unsafe"
+
+	"github.com/pkg/errors"
 )
 
 // Terminal encapsulates methods provided by a terminal output. All methods can
@@ -135,7 +137,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			} else {
 				i.WaitReply(-1, 1)
 				if err != nil {
-					return err
+					return errors.Wrap(err, "read failed")
 				}
 			}
 		}
@@ -150,7 +152,7 @@ func (i *Instance) Wait(v, port Cell) error {
 					_, err = i.output.Write([]byte{byte(c)})
 				}
 				if err != nil {
-					return err
+					return errors.Wrap(err, "write failed")
 				}
 			}
 			i.WaitReply(0, 2)
@@ -162,14 +164,14 @@ func (i *Instance) Wait(v, port Cell) error {
 			case 1: // save image
 				err := i.memDump(i.imageFile, i.Mem, 0)
 				if err != nil {
-					return err
+					return errors.Wrap(err, "image dump failed")
 				}
 				i.WaitReply(0, 4)
 			case 2: // include file
 				i.WaitReply(0, 4)
 				f, err := os.Open(DecodeString(i.Mem, i.Pop()))
 				if err != nil {
-					return err
+					return errors.Wrap(err, "file include failed")
 				}
 				i.PushInput(f)
 			case -1: // open file

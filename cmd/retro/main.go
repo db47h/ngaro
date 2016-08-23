@@ -26,6 +26,7 @@ import (
 	"unsafe"
 
 	"github.com/db47h/ngaro/vm"
+	"github.com/pkg/errors"
 )
 
 type fileList []string
@@ -40,14 +41,14 @@ func (sz *cellSizeBits) String() string { return strconv.Itoa(int(*sz)) }
 func (sz *cellSizeBits) Set(s string) error {
 	n, err := strconv.Atoi(s)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "integer conversion failed")
 	}
 	switch n {
 	case 32, 64:
 		*sz = cellSizeBits(n)
 		return nil
 	default:
-		return fmt.Errorf("%d bits cells not supported", n)
+		return errors.Errorf("%d bits cells not supported", n)
 	}
 }
 func (sz *cellSizeBits) Get() interface{} { return *sz }
@@ -62,6 +63,8 @@ var (
 	dstCellSz   = srcCellSz
 )
 
+// port1Handler is a wrapper input handler that catches CTRL-D and turns it into
+// io.EOF
 func port1Handler(i *vm.Instance, v, port vm.Cell) error {
 	if v != 1 {
 		return i.Wait(v, port)
@@ -70,7 +73,7 @@ func port1Handler(i *vm.Instance, v, port vm.Cell) error {
 	e := i.Wait(v, port)
 	// in raw tty mode, we need to handle CTRL-D ourselves
 	if e == nil && i.Ports[1] == 4 {
-		return io.EOF
+		return errors.Wrap(io.EOF, "caught CTRL-D")
 	}
 	return e
 }
@@ -81,8 +84,8 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 		if v != 1 {
 			return i.Wait(v, port)
 		}
-		t := i.Tos() // save TOS
-		e = i.Wait(v, port)
+		t := i.Tos()        // save TOS (char to write)
+		e = i.Wait(v, port) // call default handler
 		if e == nil && t == 8 && i.Ports[port] == 0 {
 			// the vm has written a backspace, erase char under cursor
 			_, e = w.Write([]byte{32, 8})
@@ -100,11 +103,7 @@ func shrinkSave(fileName string, mem []vm.Cell, _ int) error {
 	if here := mem[3]; !noShrink && here >= 0 && here < end {
 		end = here
 	}
-	err := vm.Save(outFileName, mem[:end], int(dstCellSz))
-	if err != nil {
-		return err
-	}
-	return nil
+	return vm.Save(outFileName, mem[:end], int(dstCellSz))
 }
 
 func setupIO() (raw bool, tearDown func()) {
@@ -223,7 +222,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	if err = i.Run(); err == io.EOF {
+	if err = i.Run(); errors.Cause(err) == io.EOF {
 		err = nil
 	}
 }

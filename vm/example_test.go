@@ -25,6 +25,7 @@ import (
 
 	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
+	"github.com/pkg/errors"
 )
 
 // Shows how to load an image, setup the VM with multiple readers/init code.
@@ -50,10 +51,12 @@ func ExampleInstance_Run() {
 	if err == nil {
 		err = i.Run()
 	}
-	if err != nil {
-		// in interactive use, err may be io.EOF if any of the IO channels gets closed
-		// in which case this would be a normal exit condition
-		panic(err)
+	// in interactive use, err may be io.EOF if any of the IO channels gets closed
+	// in which case this would be a normal exit condition
+	if err != nil && errors.Cause(err) != io.EOF {
+		// Use %+v to get a nice stack trace
+		fmt.Fprintf(os.Stderr, "%+v\n", err)
+		return
 	}
 
 	// filter output to get the retro core test results.

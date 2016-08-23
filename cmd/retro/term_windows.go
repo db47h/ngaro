@@ -16,7 +16,7 @@
 
 package main
 
-import "errors"
+import "github.com/pkg/errors"
 
 // setRawIO() attempts to set stdin to raw IO and returns a function
 // to restore IO settings as they were before

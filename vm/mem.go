@@ -19,10 +19,11 @@ package vm
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"unsafe"
+
+	"github.com/pkg/errors"
 )
 
 // load32 loads a 32 bits image.
@@ -33,7 +34,7 @@ func load32(mem []Cell, r io.Reader, fileCells int) error {
 		_, err := io.ReadFull(r, b)
 		if err != nil {
 			if err != io.EOF {
-				return err
+				return errors.Wrap(err, "cell read failed")
 			}
 			break
 		}
@@ -41,7 +42,7 @@ func load32(mem []Cell, r io.Reader, fileCells int) error {
 		p++
 	}
 	if p != fileCells {
-		return fmt.Errorf("load: read %c cells, expected %d", p, fileCells)
+		return errors.Errorf("read %c cells, expected %d", p, fileCells)
 	}
 	return nil
 }
@@ -54,20 +55,20 @@ func load64(mem []Cell, r io.Reader, fileCells int) error {
 		_, err := io.ReadFull(r, b)
 		if err != nil {
 			if err != io.EOF {
-				return err
+				return errors.Wrap(err, "cell read failed")
 			}
 			break
 		}
 		v := int64(binary.LittleEndian.Uint64(b))
 		n := Cell(v)
 		if int64(n) != v {
-			return fmt.Errorf("load error: 64 bits value %d at memory location %d too large", v, p)
+			return errors.Errorf("64 bits value %d at memory location %d too large", v, p)
 		}
 		mem[p] = n
 		p++
 	}
 	if p != fileCells {
-		return fmt.Errorf("load: read %c cells, expected %d", p, fileCells)
+		return errors.Errorf("read %c cells, expected %d", p, fileCells)
 	}
 	return nil
 }
@@ -84,20 +85,20 @@ func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, er
 		cellBits = int(unsafe.Sizeof(Cell(0))) * 8
 	case 32, 64:
 	default:
-		return nil, 0, fmt.Errorf("Loading of %d bits images is not supported", cellBits)
+		return nil, 0, errors.Errorf("loading of %d bits images is not supported", cellBits)
 	}
 	f, err := os.Open(fileName)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, errors.Wrap(err, "open failed")
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, errors.Wrap(err, "fstat failed")
 	}
 	sz := st.Size()
 	if sz > int64((^uint(0))>>1) { // MaxInt
-		return nil, 0, fmt.Errorf("Load %v: file too large", fileName)
+		return nil, 0, errors.Errorf("%v: file too large", fileName)
 	}
 	fileCells = int(sz / int64(cellBits/8))
 	// make sure there are at least 1024 free cells at the end of the image
@@ -113,7 +114,7 @@ func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, er
 		err = load64(mem, bufio.NewReader(f), fileCells)
 	}
 	if err != nil {
-		return nil, fileCells, err
+		return nil, fileCells, errors.Wrap(err, "load failed")
 	}
 	return mem, fileCells, nil
 }
@@ -123,7 +124,7 @@ func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, er
 func Save(fileName string, mem []Cell, cellBits int) error {
 	f, err := os.Create(fileName)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "create failed")
 	}
 	w := bufio.NewWriter(f)
 	defer func() {
@@ -143,11 +144,11 @@ func Save(fileName string, mem []Cell, cellBits int) error {
 		for k, v := range mem {
 			nv := int32(v)
 			if Cell(nv) != v {
-				return fmt.Errorf("save error: 64 bits value %d at memory location %d too large", v, k)
+				return errors.Errorf("64 bits value %d at memory location %d too large", v, k)
 			}
 			binary.LittleEndian.PutUint32(b[:], uint32(nv))
 			if _, err = w.Write(b[:]); err != nil {
-				return err
+				return errors.Wrap(err, "write failed")
 			}
 		}
 	case 64:
@@ -155,13 +156,13 @@ func Save(fileName string, mem []Cell, cellBits int) error {
 		for _, v := range mem {
 			binary.LittleEndian.PutUint64(b[:], uint64(v))
 			if _, err = w.Write(b[:]); err != nil {
-				return err
+				return errors.Wrap(err, "write failed")
 			}
 		}
 	default:
-		return fmt.Errorf("Saving to %d bits images is not supported", cellBits)
+		return errors.Errorf("saving to %d bits images is not supported", cellBits)
 	}
-	return err
+	return errors.Wrap(err, "save failed")
 }
 
 // DecodeString returns the string starting at position start in the specified

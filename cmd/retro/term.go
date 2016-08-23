@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/pkg/errors"
 	"github.com/pkg/term/termios"
 )
 
@@ -33,7 +34,7 @@ func setRawIO() (func(), error) {
 	var tios syscall.Termios
 	err := termios.Tcgetattr(0, &tios)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Tcgetattr failed")
 	}
 	a := tios
 	a.Iflag &^= syscall.IGNBRK | syscall.ISTRIP | syscall.IXON | syscall.IXOFF
@@ -45,7 +46,7 @@ func setRawIO() (func(), error) {
 	if err != nil {
 		// well, try to restore as it was if it errors
 		termios.Tcsetattr(0, termios.TCSANOW, &tios)
-		return nil, err
+		return nil, errors.Wrap(err, "Tcsetattr failed")
 	}
 	return func() {
 		termios.Tcsetattr(0, termios.TCSANOW, &tios)
@@ -61,7 +62,7 @@ func ioctl(fd uintptr, request, argp uintptr) (err error) {
 	if errno != 0 {
 		err = errno
 	}
-	return err
+	return errors.Wrap(err, "ioctl failed")
 }
 
 func consoleSize(f *os.File) func() (int, int) {

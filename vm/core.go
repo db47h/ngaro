@@ -152,8 +152,11 @@ func (i *Instance) Rpop() Cell {
 // If the VM was exited cleanly from a user program with the `bye` word, the PC
 // will be equal to len(i.Image) and err will be nil.
 //
-// If the last input stream gets closed, the VM will exit and return io.EOF.
-// This is a normal exit condition in most use cases.
+// Note that this package makes heavy use of the github.com/pkg/errors package.
+// The "root cause" error can be obtained with errors.Cause().
+//
+// If the last input stream gets closed, the VM will exit and the root cause
+// error will be io.EOF. This is a normal exit condition in most use cases.
 func (i *Instance) Run() (err error) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -294,7 +297,7 @@ func (i *Instance) Run() (err error) {
 			if h := i.inH[port]; h != nil {
 				i.Drop()
 				if err = h(i, port); err != nil {
-					return err
+					return errors.Wrap(err, "IN failed")
 				}
 			} else {
 				// we're not calling i.In so that we can optimize out a Pop/Push
@@ -311,7 +314,7 @@ func (i *Instance) Run() (err error) {
 				err = i.Out(v, port)
 			}
 			if err != nil {
-				return err
+				return errors.Wrap(err, "OUT failed")
 			}
 			i.PC++
 		case OpWait:
@@ -322,7 +325,7 @@ func (i *Instance) Run() (err error) {
 						continue
 					}
 					if err = h(i, v, p); err != nil {
-						return err
+						return errors.Wrap(err, "WAIT failed")
 					}
 				}
 			}
@@ -339,7 +342,7 @@ func (i *Instance) Run() (err error) {
 				// custom opcode
 				err = i.opHandler(i, op)
 				if err != nil {
-					return err
+					return errors.Wrap(err, "custom opcode handler failed")
 				}
 				i.PC++
 			}

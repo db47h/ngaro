@@ -17,9 +17,10 @@
 package vm
 
 import (
-	"fmt"
 	"io"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -62,7 +63,7 @@ type Option func(*Instance) error
 func DataSize(size int) Option {
 	return func(i *Instance) error {
 		if size < i.sp {
-			return fmt.Errorf("Requested stack size too small to hold current stack: %d < %d", size, i.sp)
+			return errors.Errorf("requested stack size too small to hold current stack: %d < %d", size, i.sp)
 		}
 		size++
 		if size <= len(i.data) {
@@ -81,7 +82,7 @@ func DataSize(size int) Option {
 func AddressSize(size int) Option {
 	return func(i *Instance) error {
 		if size < i.rsp {
-			return fmt.Errorf("Requested stack size too small to hold current stack: %d < %d", size, i.rsp)
+			return errors.Errorf("requested stack size too small to hold current stack: %d < %d", size, i.rsp)
 		}
 		size++
 		if size <= len(i.address) {
@@ -230,7 +231,7 @@ func New(mem []Cell, imageFile string, opts ...Option) (*Instance, error) {
 	}
 
 	if err := i.SetOptions(opts...); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "SetOptions failed")
 	}
 	if i.data == nil {
 		i.SetOptions(DataSize(dataSize))

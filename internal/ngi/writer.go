@@ -17,7 +17,11 @@
 // Package ngi - or ngaro-internal with some commonly used stuff.
 package ngi
 
-import "io"
+import (
+	"io"
+
+	"github.com/pkg/errors"
+)
 
 // ErrWriter is a simple wrapper to track io errors. Write will keep returning
 // the last error over and over.
@@ -30,7 +34,10 @@ func (w *ErrWriter) Write(p []byte) (n int, err error) {
 	if w.Err != nil {
 		return 0, w.Err
 	}
-	n, w.Err = w.w.Write(p)
+	n, err = w.w.Write(p)
+	if err != nil {
+		w.Err = errors.Wrap(err, "write failed")
+	}
 	return n, w.Err
 }
 

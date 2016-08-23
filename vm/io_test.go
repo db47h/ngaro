@@ -26,6 +26,7 @@ import (
 
 	"github.com/db47h/ngaro/asm"
 	"github.com/db47h/ngaro/vm"
+	"github.com/pkg/errors"
 )
 
 func Test_io_GetEnv(t *testing.T) {
@@ -102,7 +103,7 @@ func Test_io_Caps(t *testing.T) {
 			-15 5 io ( port 8 enabled )
 			 1 1 io ( will cause EOF on nil input )`,
 		"io_Caps", vm.Output(vm.NewVT100Terminal(bytes.NewBuffer(nil), nil, nil)))
-	if err != io.EOF {
+	if errors.Cause(err) != io.EOF {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	assertEqualI(t, "io_Caps port 8", -1, int(i.Pop()))
@@ -135,7 +136,7 @@ func Test_multireader(t *testing.T) {
 		vm.Input(strings.NewReader("56")),
 		vm.Input(strings.NewReader("34")),
 		vm.Input(strings.NewReader("12")))
-	if err != io.EOF {
+	if errors.Cause(err) != io.EOF {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	for n := 6; n > 0; n-- {
@@ -253,9 +254,9 @@ func TestSave_32(t *testing.T) {
 		x := int64(1)
 		img[2] = vm.Cell(x << 32)
 		_, err := runImage(img, d, vm.SaveMemImage(sf))
-		exp := "save error: 64 bits value 4294967296 at memory location 2 too large"
+		exp := "WAIT failed: image dump failed: 64 bits value 4294967296 at memory location 2 too large"
 		if err == nil || err.Error() != exp {
-			t.Fatalf("\nExpected: %s\nGot: %v", exp)
+			t.Fatalf("\nExpected: %s\nGot: %v", exp, err.Error())
 		}
 		img[2] = 0
 	}
