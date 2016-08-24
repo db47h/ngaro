@@ -21,7 +21,6 @@ import (
 	"encoding/binary"
 	"io"
 	"os"
-	"unsafe"
 
 	"github.com/pkg/errors"
 )
@@ -79,7 +78,7 @@ func load64(mem []Cell, r io.Reader, fileCells int) error {
 func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, err error) {
 	switch cellBits {
 	case 0:
-		cellBits = int(unsafe.Sizeof(Cell(0))) * 8
+		cellBits = CellBits
 	case 32, 64:
 	default:
 		return nil, 0, errors.Errorf("loading of %d bits images is not supported", cellBits)
@@ -132,7 +131,7 @@ func Save(fileName string, mem []Cell, cellBits int) error {
 		}
 	}()
 	if cellBits == 0 {
-		cellBits = int(unsafe.Sizeof(Cell(0))) * 8
+		cellBits = CellBits
 	}
 	switch cellBits {
 	case 32:

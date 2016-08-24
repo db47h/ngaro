@@ -108,7 +108,7 @@ func Test_io_Caps(t *testing.T) {
 	}
 	assertEqualI(t, "io_Caps port 8", -1, int(i.Pop()))
 	assertEqualI(t, "io_Caps endian", 0, int(i.Pop()))
-	assertEqualI(t, "io_Caps Cell bits", 8*int(unsafe.Sizeof(vm.Cell(0))), int(i.Pop()))
+	assertEqualI(t, "io_Caps Cell bits", 8*int(unsafe.Sizeof(vm.Cell(0))), int(i.Pop())) // do not use vm.CellBits, just to check
 	assertEqualI(t, "io_Caps rstack", 3, int(i.Pop()))
 	assertEqualI(t, "io_Caps rstack", 1, int(i.Pop()))
 }
@@ -199,7 +199,7 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("Expected -1, got %d", mem[0])
 	}
 	// force failure if vm.Cell is 32 bits
-	if unsafe.Sizeof(vm.Cell(0)) == 4 {
+	if vm.CellBits == 32 {
 		_, _, err = vm.Load(fn, 0, 64)
 		exp := "load error: 64 bits value 8589934591 at memory location 0 too large"
 		if err == nil || err.Error() != exp {
@@ -250,7 +250,7 @@ func TestSave_32(t *testing.T) {
 		return vm.Save(fileName, mem, 32)
 	}
 	// force failure if vm.Cell is 64 bits
-	if unsafe.Sizeof(vm.Cell(0)) == 8 {
+	if vm.CellBits == 64 {
 		x := int64(1)
 		img[2] = vm.Cell(x << 32)
 		_, err := runImage(img, d, vm.SaveMemImage(sf))

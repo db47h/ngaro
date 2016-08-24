@@ -20,3 +20,4 @@ package vm
 
 // Cell is the basic type stored in a VM memory location.
 type Cell int32
+type uCell uint32

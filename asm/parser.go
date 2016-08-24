@@ -23,7 +23,6 @@ import (
 	"strings"
 	"text/scanner"
 	"unicode"
-	"unsafe"
 
 	"github.com/db47h/ngaro/vm"
 )
@@ -215,7 +214,7 @@ func (p *parser) scan() (tok rune, s string, v int) {
 	}
 
 	// check int
-	n, err := strconv.ParseInt(s, 0, 8*int(unsafe.Sizeof(vm.Cell(0))))
+	n, err := strconv.ParseInt(s, 0, vm.CellBits)
 	if err == nil {
 		return scanner.Int, s, int(n)
 	}

@@ -281,7 +281,7 @@ func (i *Instance) Wait(v, port Cell) error {
 					i.Ports[5] = 0
 				}
 			case -13:
-				i.Ports[5] = Cell(unsafe.Sizeof(Cell(0)) * 8)
+				i.Ports[5] = CellBits
 			case -14:
 				v = 0x01000000
 				i.Ports[5] = Cell(*(*int8)(unsafe.Pointer(&v)))

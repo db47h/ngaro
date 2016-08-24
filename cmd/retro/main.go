@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"unsafe"
 
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
@@ -59,7 +58,7 @@ var (
 	debug       bool
 	dump        bool
 	outFileName string
-	srcCellSz   = cellSizeBits(unsafe.Sizeof(vm.Cell(0)) * 8)
+	srcCellSz   = cellSizeBits(vm.CellBits)
 	dstCellSz   = srcCellSz
 )
 
