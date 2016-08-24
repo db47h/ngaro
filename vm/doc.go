@@ -41,9 +41,10 @@
 // its performance when running tests/core.rx is slightly better than with the
 // reference implementations:
 //
-//	1.12s for this implementation, no custom opcodes, compiled with Go 1.7.
-//	1.30s for the reference Go implementation, compiled with Go 1.7
-//	2.22s for the reference C implementation, compiled with gcc-5.4 -O3 -fomit-frame-pointer
+//	1.08s for this implementation, no custom opcodes, compiled with Go 1.7, linux/amd64
+//	1.15s for the reference assembly implementation, linux/386
+//	1.30s for the reference Go implementation, compiled with Go 1.7, linux/amd64
+//	2.00s for the reference C implementation, compiled with gcc-5.4 -O3 -fomit-frame-pointer
 //
 // For all intents and purposes, the VM behaves according to the specification.
 // This is of particular importance to implementors of custom opcodes: the VM
