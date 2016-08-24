@@ -167,14 +167,14 @@ func main() {
 
 	var fileName = flag.String("image", "retroImage", "Load memory image from file `filename`")
 	flag.Var(&srcCellSz, "ibits", "cell size in bits of loaded memory image")
-	var size = flag.Int("size", 100000, "image size in cells")
-	flag.BoolVar(&dump, "dump", false, "dump stacks and image upon exit, for ngarotest.py")
+	var size = flag.Int("size", 100000, "runtime memory image size in cells")
+	flag.BoolVar(&dump, "dump", false, "dump stacks and memory image upon exit, for ngarotest.py")
 	flag.Var(&withFiles, "with", "Add `filename` to the input list (can be specified multiple times)")
-	flag.BoolVar(&noShrink, "noshrink", false, "When saving, don't shrink image")
+	flag.BoolVar(&noShrink, "noshrink", false, "When saving, don't shrink memory image file")
 	flag.BoolVar(&noRawIO, "noraw", false, "disable raw terminal IO")
 	flag.BoolVar(&debug, "debug", false, "enable debug diagnostics")
 	flag.StringVar(&outFileName, "o", "", "`filename` to use when saving memory image")
-	flag.Var(&dstCellSz, "obits", "cell size in bits of saved image")
+	flag.Var(&dstCellSz, "obits", "cell size in bits of saved memory image")
 
 	flag.Parse()
 
