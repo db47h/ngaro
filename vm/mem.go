@@ -76,9 +76,6 @@ func load64(mem []Cell, r io.Reader, fileCells int) error {
 // Load loads a memory image from file fileName. Returns a VM Cell slice ready
 // to run from, the actual number of cells read from the file and any error. The
 // cellBits parameter specifies the number of bits per Cell in the file.
-//
-// The returned slice should have its length equal to the maximum of the
-// requested minimum size and the image file size + 1024 free cells.
 func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, err error) {
 	switch cellBits {
 	case 0:
@@ -101,8 +98,7 @@ func Load(fileName string, minSize, cellBits int) (mem []Cell, fileCells int, er
 		return nil, 0, errors.Errorf("%v: file too large", fileName)
 	}
 	fileCells = int(sz / int64(cellBits/8))
-	// make sure there are at least 1024 free cells at the end of the image
-	imgCells := fileCells + 1024
+	imgCells := fileCells
 	if minSize > imgCells {
 		imgCells = minSize
 	}

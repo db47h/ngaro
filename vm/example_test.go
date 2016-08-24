@@ -72,7 +72,7 @@ func ExampleInstance_Run() {
 // Shows a common use of OUT port handlers.
 func ExampleBindOutHandler() {
 	imageFile := "testdata/retroImage"
-	img, _, err := vm.Load(imageFile, 0, 32)
+	img, _, err := vm.Load(imageFile, 50000, 32)
 	if err != nil {
 		panic(err)
 	}
@@ -175,7 +175,7 @@ func ExampleBindWaitHandler() {
 // backround job, and a result handler to query and wait for the result.
 func ExampleBindWaitHandler_async() {
 	imageFile := "testdata/retroImage"
-	img, _, err := vm.Load(imageFile, 0, 32)
+	img, _, err := vm.Load(imageFile, 50000, 32)
 	if err != nil {
 		panic(err)
 	}
