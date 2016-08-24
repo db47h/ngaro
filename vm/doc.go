@@ -26,14 +26,16 @@
 // VM, please refer to
 // http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
 //
-// Another goal is to separate the VM core from its traditional use in
-// association with the Retro language. Some Retro specific behaviors have been
-// moved from the VM to the retro command line tool. See https://github.com/db47h/ngaro/cmd/retro.
+// Another goal is to make the VM core as neutral as possible regarding the higher
+// level language running on it. Some Retro specific behaviors have been moved from
+// the VM to the retro command line tool, like shrinking memory image dumps that
+// relies on reading the memory image size at a specific location in memory.
 //
-// Custom opcodes are implemented by intercepting implicit calls to negative
-// memory addresses. This limits the total addressable memory to 2GiB on 32 bits
-// systems, but this also allows the VM to be fully backwards compatible with
-// existing Retro images while still providing enhanced capabilities.
+// Custom opcodes are implemented by intercepting implicit calls to negative memory
+// addresses. This allows the VM to be fully backwards compatible with existing
+// Retro images while still providing enhanced capabilities. The maximum number of
+// addressable cells is 2^31 when running in 32 bits mode (that's 8GiB or memory on
+// the host). The range [-2^31 - 1, -1] is available for custom opcodes.
 //
 // This implementation passes all tests from the retro-language test suite and
 // its performance when running tests/core.rx is slightly better than with the
