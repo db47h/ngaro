@@ -335,7 +335,12 @@ func (i *Instance) Run() (err error) {
 				i.rsp++
 				i.address[i.rsp] = i.rtos
 				i.rtos, i.PC = Cell(i.PC), int(op)
-				for i.PC < len(i.Mem) && i.Mem[i.PC] == OpNop {
+				// this is retro specific: most words have a pair of nop at the
+				// beginning to enable vectoring, skip them. This shaves of a few cycles.
+				if i.PC < len(i.Mem) && i.Mem[i.PC] == OpNop {
+					i.PC++
+				}
+				if i.PC < len(i.Mem) && i.Mem[i.PC] == OpNop {
 					i.PC++
 				}
 			} else if i.opHandler != nil {
