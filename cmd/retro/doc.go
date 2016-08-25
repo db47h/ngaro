@@ -17,7 +17,7 @@
 // The retro command line tool is a a showcase for the package github.com/db47h/ngaro/vm
 // and can be used as a high performance replacement for the Retro reference implementations.
 //
-// See aslo http://forthworks.com/retro/ for more information on Retro.
+// See also http://forthworks.com/retro/ for more information on Retro.
 //
 // Usage:
 //
