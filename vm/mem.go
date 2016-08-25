@@ -25,6 +25,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Codec encapsulates methods for encoding and decoding data stored in memory.
+// This is primarily used to encode/decode strings: the VM needs to know how to
+// encode/decode strings in some I/O operations, like when retrieving
+// environment variables.
+type Codec interface {
+	// Decode returns the decoded byte slice starting at position start in the specified slice.
+	Decode(mem []Cell, start Cell) []byte
+	// Encode writes the given byte slice at position start in specified slice.
+	Encode(mem []Cell, start Cell, s []byte)
+}
+
 // load32 loads a 32 bits image.
 func load32(mem []Cell, r io.Reader, fileCells int) error {
 	var b = make([]byte, 4)
@@ -158,30 +169,4 @@ func Save(fileName string, mem []Cell, cellBits int) error {
 		return errors.Errorf("saving to %d bits images is not supported", cellBits)
 	}
 	return errors.Wrap(err, "save failed")
-}
-
-// DecodeString returns the string starting at position start in the specified
-// slice. Strings stored in the slice must be zero terminated. The trailing '\0'
-// is not returned.
-func DecodeString(mem []Cell, start Cell) string {
-	pos := int(start)
-	end := pos
-	for ; end < len(mem) && mem[end] != 0; end++ {
-	}
-	str := make([]byte, end-pos)
-	for idx, c := range mem[pos:end] {
-		str[idx] = byte(c)
-	}
-	return string(str)
-}
-
-// EncodeString writes the given string at position start in specified slice
-// and terminates it with a '\0' Cell.
-func EncodeString(mem []Cell, start Cell, s string) {
-	pos := int(start)
-	for _, c := range []byte(s) {
-		mem[pos] = Cell(c)
-		pos++
-	}
-	mem[pos] = 0
 }

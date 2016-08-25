@@ -52,14 +52,14 @@ type Instance struct {
 	inH       map[Cell]InHandler
 	outH      map[Cell]OutHandler
 	waitH     map[Cell]WaitHandler
+	sEnc      Codec
 	opHandler OpcodeHandler
 	imageFile string
-	shrink    bool
 	input     io.Reader
 	output    Terminal
 	fid       Cell
 	files     map[Cell]*os.File
-	memDump   func(string, []Cell, int) error
+	memDump   func(string, []Cell) error
 }
 
 // Option interface
@@ -118,14 +118,14 @@ func Output(t Terminal) Option {
 }
 
 // SaveMemImage overrides the memory image dump function called when writing 1 to I/O port 4.
-// The default is:
+// The default is to call:
 //
 //	Save(i.imageFile, i.Mem, 0)
 //
 // This is to allow saving images of different Cell sizes and to enable
 // implementations of specific languages (like Retro) to do image shrinking
 // based on some value in the VM instance's memory.
-func SaveMemImage(fn func(filename string, mem []Cell, cellBits int) error) Option {
+func SaveMemImage(fn func(filename string, mem []Cell) error) Option {
 	return func(i *Instance) error { i.memDump = fn; return nil }
 }
 
@@ -200,6 +200,19 @@ func BindOpcodeHandler(handler OpcodeHandler) Option {
 	}
 }
 
+// StringCodec delegates string encoding/decoding in the memory image to the
+// specified Codec. This is needed in file I/O where filenames are read from
+// memory. Clients that make use of these I/O calls must configure a
+// StringCodec. For Retro style encoding (one byte per Cell, 0 terminated),
+// retro.StringCodec can be used as Codec. Implementations using othe encoding
+// schemes, must provide their own Codec.
+func StringCodec(e Codec) Option {
+	return func(i *Instance) error {
+		i.sEnc = e
+		return nil
+	}
+}
+
 // SetOptions sets the provided options.
 func (i *Instance) SetOptions(opts ...Option) error {
 	for _, opt := range opts {
@@ -230,7 +243,7 @@ func New(mem []Cell, imageFile string, opts ...Option) (*Instance, error) {
 		imageFile: imageFile,
 		files:     make(map[Cell]*os.File),
 		fid:       1,
-		memDump:   Save,
+		memDump:   func(filename string, mem []Cell) error { return Save(filename, mem, 0) },
 	}
 
 	// default Wait Handlers

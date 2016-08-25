@@ -22,13 +22,15 @@ distclean:
 
 test:
 ifeq ($(REPORT_COVERAGE),true)
-	$(GO) test $(PKG)/vm -covermode=count -coverprofile=coverage0.cov
-	$(GO) test $(PKG)/asm -covermode=count -coverprofile=coverage1.cov
+$(GO) test $(PKG)/vm -covermode=count -coverprofile=coverage0.cov
+$(GO) test $(PKG)/lang/retro -covermode=count -coverprofile=coverage1.cov
+$(GO) test $(PKG)/asm -covermode=count -coverprofile=coverage2.cov
 	@echo "mode: count" > coverage.cov
 	@grep -v ^mode coverage0.cov >> coverage.cov
 	@grep -v ^mode coverage1.cov >> coverage.cov
+	@grep -v ^mode coverage2.cov >> coverage.cov
 	$$(go env GOPATH | awk 'BEGIN{FS=":"} {print $1}')/bin/goveralls -coverprofile=coverage.cov -service=travis-ci
-	@$(RM) coverage0.cov coverage1.cov coverage.cov
+	@$(RM) coverage0.cov coverage1.cov coverage2.cov coverage.cov
 else
 	$(GO) test -v $(PKG)/...
 endif
@@ -39,12 +41,14 @@ bench:
 
 cover:
 	$(GO) test $(PKG)/vm -covermode=count -coverprofile=coverage0.cov
-	$(GO) test $(PKG)/asm -covermode=count -coverprofile=coverage1.cov
+	$(GO) test $(PKG)/lang/retro -covermode=count -coverprofile=coverage1.cov
+	$(GO) test $(PKG)/asm -covermode=count -coverprofile=coverage2.cov
 	@echo "mode: count" > coverage.cov
 	@grep -v ^mode coverage0.cov >> coverage.cov
 	@grep -v ^mode coverage1.cov >> coverage.cov
+	@grep -v ^mode coverage2.cov >> coverage.cov
 	$(GO) tool cover -html coverage.cov
-	@$(RM) coverage0.cov coverage1.cov coverage.cov
+	@$(RM) coverage0.cov coverage1.cov coverage2.cov coverage.cov
 
 qbench: retroImage
 	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro <vm/testdata/core.rx >/dev/null

@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/db47h/ngaro/asm"
+	"github.com/db47h/ngaro/lang/retro"
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
 )
@@ -44,6 +45,7 @@ func ExampleInstance_Run() {
 	// reader with some custom init code that will include and run the retro core tests.
 	i, err := vm.New(img, imageFile,
 		vm.Input(os.Stdin),
+		vm.StringCodec(retro.StringCodec),
 		vm.Input(strings.NewReader("\"testdata/core.rx\" :include\n")),
 		vm.Output(vm.NewVT100Terminal(output, nil, nil)))
 

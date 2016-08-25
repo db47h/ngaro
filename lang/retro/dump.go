@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package retro
 
 import (
 	"io"
@@ -44,8 +44,8 @@ func dumpSlice(w io.Writer, prefix byte, a []vm.Cell) error {
 	return err
 }
 
-// Dump dumps the virtual machine stacks and memory image to the specified io.Writer.
-func dumpVM(i *vm.Instance, size int, w io.Writer) error {
+// DumpVM dumps the virtual machine stacks and memory image to the specified io.Writer.
+func DumpVM(i *vm.Instance, size int, w io.Writer) error {
 	err := dumpSlice(w, '\x1C', i.Data())
 	if err != nil {
 		return err

@@ -27,9 +27,8 @@
 // http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html.
 //
 // Another goal is to make the VM core as neutral as possible regarding the higher
-// level language running on it. Some Retro specific behaviors have been moved from
-// the VM to the retro command line tool, like shrinking memory image dumps that
-// relies on reading the memory image size at a specific location in memory.
+// level language running on it. For example, the in-memory string encoding scheme
+// is fully customizable. Retro specific behaviors are provided via the lang/retro package.
 //
 // Custom opcodes are implemented by intercepting implicit calls to negative memory
 // addresses. This allows the VM to be fully backwards compatible with existing

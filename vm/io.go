@@ -137,7 +137,7 @@ func (i *Instance) Wait(v, port Cell) error {
 			} else {
 				i.WaitReply(-1, 1)
 				if err != nil {
-					return errors.Wrap(err, "read failed")
+					return errors.Wrap(err, "input read failed")
 				}
 			}
 		}
@@ -152,7 +152,7 @@ func (i *Instance) Wait(v, port Cell) error {
 					_, err = i.output.Write([]byte{byte(c)})
 				}
 				if err != nil {
-					return errors.Wrap(err, "write failed")
+					return errors.Wrap(err, "output write failed")
 				}
 			}
 			i.WaitReply(0, 2)
@@ -162,20 +162,32 @@ func (i *Instance) Wait(v, port Cell) error {
 			var b [1]byte
 			switch v {
 			case 1: // save image
-				err := i.memDump(i.imageFile, i.Mem, 0)
+				err := i.memDump(i.imageFile, i.Mem)
 				if err != nil {
 					return errors.Wrap(err, "image dump failed")
 				}
 				i.WaitReply(0, 4)
 			case 2: // include file
 				i.WaitReply(0, 4)
-				f, err := os.Open(DecodeString(i.Mem, i.Pop()))
-				if err != nil {
-					return errors.Wrap(err, "file include failed")
+				var (
+					f    *os.File
+					err  error
+					addr = i.Pop()
+				)
+				if i.sEnc != nil {
+					f, err = os.Open(string(i.sEnc.Decode(i.Mem, addr)))
+					if err != nil {
+						return errors.Wrap(err, "file include failed")
+					}
+					i.PushInput(f)
+					break
 				}
-				i.PushInput(f)
+				return errors.Wrap(err, "file include failed: no string encoder configured")
 			case -1: // open file
-				fd := i.openfile(DecodeString(i.Mem, i.data[i.sp]), i.tos)
+				var fd Cell
+				if i.sEnc != nil {
+					fd = i.openfile(string(i.sEnc.Decode(i.Mem, i.data[i.sp])), i.tos)
+				}
 				i.Drop2()
 				i.WaitReply(fd, 4)
 			case -2: // read byte
@@ -227,12 +239,14 @@ func (i *Instance) Wait(v, port Cell) error {
 				}
 				i.WaitReply(sz, 4)
 			case -8: // delete
-				err := os.Remove(DecodeString(i.Mem, i.Pop()))
-				if err != nil {
-					i.WaitReply(0, 4)
-				} else {
-					i.WaitReply(-1, 4)
+				var r Cell
+				addr := i.Pop()
+				if i.sEnc != nil {
+					if os.Remove(string(i.sEnc.Decode(i.Mem, addr))) == nil {
+						r = -1
+					}
 				}
+				i.WaitReply(r, 4)
 			default:
 				i.WaitReply(0, 4)
 			}
@@ -262,7 +276,9 @@ func (i *Instance) Wait(v, port Cell) error {
 				// environment query
 				src, dst := i.tos, i.data[i.sp]
 				i.Drop2()
-				EncodeString(i.Mem, dst, os.Getenv(DecodeString(i.Mem, src)))
+				if i.sEnc != nil {
+					i.sEnc.Encode(i.Mem, dst, []byte(os.Getenv(string(i.sEnc.Decode(i.Mem, src)))))
+				}
 				i.Ports[5] = 0
 			case -11:
 				// console width

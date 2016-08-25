@@ -25,6 +25,7 @@ import (
 	"unsafe"
 
 	"github.com/db47h/ngaro/asm"
+	"github.com/db47h/ngaro/lang/retro"
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
 )
@@ -33,6 +34,7 @@ func Test_io_GetEnv(t *testing.T) {
 	var b = bytes.NewBuffer(nil)
 	_, err := runImageFile(retroImage, imageBits,
 		vm.Output(vm.NewVT100Terminal(b, nil, nil)),
+		vm.StringCodec(retro.StringCodec),
 		vm.Input(strings.NewReader(": pEnv here dup push swap getEnv cr pop puts bye ; \"PATH\" pEnv ")))
 	if err != nil {
 		t.Fatalf("%+v", err)
@@ -52,6 +54,7 @@ func Test_io_Files(t *testing.T) {
 	var b = bytes.NewBuffer(nil)
 	_, err = runImageFile("retroImage", imageBits,
 		vm.Output(vm.NewVT100Terminal(b, nil, nil)),
+		vm.StringCodec(retro.StringCodec),
 		vm.Input(strings.NewReader("\"files.rx\" :include\n")))
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +72,8 @@ func Test_io_Files(t *testing.T) {
 			lit fileName 0 -1 4 io dup	( open retroImage, should work and return fd = 1 )
 			-4 4 io 					( close, should work and return 0 )
 			lit fileName 77 -1 4 io		( should fail )`,
-		"io_Caps")
+		"io_Caps",
+		vm.StringCodec(retro.StringCodec))
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -215,7 +219,7 @@ func TestSave_64(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(d)
-	sf := func(fileName string, mem []vm.Cell, cellBits int) error {
+	sf := func(fileName string, mem []vm.Cell) error {
 		return vm.Save(fileName, mem, 64)
 	}
 	i, err := runImage(img, d, vm.SaveMemImage(sf))
@@ -246,7 +250,7 @@ func TestSave_32(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(d)
-	sf := func(fileName string, mem []vm.Cell, cellBits int) error {
+	sf := func(fileName string, mem []vm.Cell) error {
 		return vm.Save(fileName, mem, 32)
 	}
 	// force failure if vm.Cell is 64 bits

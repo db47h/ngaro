@@ -24,6 +24,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/db47h/ngaro/lang/retro"
 	"github.com/db47h/ngaro/vm"
 	"github.com/pkg/errors"
 )
@@ -93,18 +94,6 @@ func port2Handler(w io.Writer) func(i *vm.Instance, v, port vm.Cell) error {
 	}
 }
 
-// Save handler to enable shrinking of retro images
-func shrinkSave(fileName string, mem []vm.Cell, _ int) error {
-	end := vm.Cell(len(mem))
-	if len(mem) < 4 {
-		return nil
-	}
-	if here := mem[3]; !noShrink && here >= 0 && here < end {
-		end = here
-	}
-	return vm.Save(outFileName, mem[:end], int(dstCellSz))
-}
-
 func setupIO() (raw bool, tearDown func()) {
 	var err error
 	if !noRawIO {
@@ -157,7 +146,7 @@ func main() {
 	defer func() {
 		output.Flush()
 		if err == nil && dump {
-			err = dumpVM(i, fileCells, os.Stdout)
+			err = retro.DumpVM(i, fileCells, os.Stdout)
 		}
 		atExit(i, err)
 	}()
@@ -185,7 +174,7 @@ func main() {
 
 	// default options
 	var opts = []vm.Option{
-		vm.SaveMemImage(shrinkSave),
+		vm.SaveMemImage(retro.ShrinkSave(!noShrink, int(dstCellSz))),
 		vm.Output(output),
 	}
 
