@@ -16,7 +16,11 @@
 
 package vm
 
-import "github.com/pkg/errors"
+import (
+	"time"
+
+	"github.com/pkg/errors"
+)
 
 // Ngaro Virtual Machine Opcodes.
 const (
@@ -353,6 +357,7 @@ func (i *Instance) Run() (err error) {
 			}
 		}
 		i.insCount++
+		time.Sleep(i.clockPeriod)
 	}
 	return nil
 }
