@@ -19,6 +19,7 @@ package vm
 import (
 	"io"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -39,31 +40,41 @@ const (
 
 // Instance represents an Ngaro VM instance.
 type Instance struct {
-	PC        int    // Program Counter (aka. Instruction Pointer)
-	Mem       []Cell // Memory image
-	Ports     []Cell // I/O ports
-	tos       Cell   // cell on top of stack
-	sp        int
-	rsp       int
-	rtos      Cell
-	data      []Cell
-	address   []Cell
-	insCount  int64
-	inH       map[Cell]InHandler
-	outH      map[Cell]OutHandler
-	waitH     map[Cell]WaitHandler
-	sEnc      Codec
-	opHandler OpcodeHandler
-	imageFile string
-	input     io.Reader
-	output    Terminal
-	fid       Cell
-	files     map[Cell]*os.File
-	memDump   func(string, []Cell) error
+	PC          int    // Program Counter (aka. Instruction Pointer)
+	Mem         []Cell // Memory image
+	Ports       []Cell // I/O ports
+	tos         Cell   // cell on top of stack
+	sp          int
+	rsp         int
+	rtos        Cell
+	data        []Cell
+	address     []Cell
+	insCount    int64
+	inH         map[Cell]InHandler
+	outH        map[Cell]OutHandler
+	waitH       map[Cell]WaitHandler
+	sEnc        Codec
+	opHandler   OpcodeHandler
+	imageFile   string
+	input       io.Reader
+	output      Terminal
+	fid         Cell
+	files       map[Cell]*os.File
+	memDump     func(string, []Cell) error
+	clockPeriod time.Duration
 }
 
 // Option interface
 type Option func(*Instance) error
+
+// ClockPeriod sets the period between VM ticks. A zero or negative period means no pause.
+// Default is zero.
+func ClockPeriod(period time.Duration) Option {
+	return func(i *Instance) error {
+		i.clockPeriod = period
+		return nil
+	}
+}
 
 // DataSize sets the data stack size. It will not erase the stack, and will
 // panic if the requested size is not sufficient to hold the current stack. The
