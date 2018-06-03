@@ -164,7 +164,7 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "enable debug diagnostics")
 	flag.StringVar(&outFileName, "o", "", "`filename` to use when saving memory image")
 	flag.Var(&dstCellSz, "obits", "cell size in bits of saved memory image")
-	period := flag.Int64("clkfreq", 0, "clock frequency throttling in KHz")
+	freq := flag.Int64("clkfreq", 0, "clock frequency throttling in KHz")
 	sleep := flag.Duration("clkslp", 16*time.Millisecond, "interval between sleeps when throttling the clock")
 	execStats := flag.Bool("stats", false, "print performance statistics upon exit")
 
@@ -182,8 +182,8 @@ func main() {
 		vm.Output(output),
 	}
 
-	if *period > 0 {
-		opts = append(opts, vm.Ticker(vm.ClockLimiter(time.Second/time.Duration(*period)/1000, *sleep)))
+	if *freq > 0 {
+		opts = append(opts, vm.Ticker(vm.ClockLimiter(time.Second/time.Duration(*freq)/1000, *sleep)))
 	}
 
 	if rawtty {
