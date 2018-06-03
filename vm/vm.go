@@ -65,7 +65,18 @@ type Instance struct {
 	tickFn    func(i *Instance)
 }
 
-// Option interface
+// An Option is a function for setting a VM Instance's options in New.
+//
+// Note that Option functions directly set instance parameters without going
+// through a delegate config structure, and since there is no locking mechanism
+// to access an Instance's fields, Option functions must only be used in a call
+// to New.
+//
+// The only exception is from a ticker function registered with Ticker where
+// the VM is actually paused during the call.
+//
+// There are plans to change this and use a delegate config structure.
+//
 type Option func(*Instance) error
 
 // ClockLimiter returns a ticker function that sets the period between VM ticks.
@@ -74,9 +85,9 @@ type Option func(*Instance) error
 // A zero or negative period means no pause.
 //
 // Since calling time.Sleep() on every tick is not efficient, the
-// tickInterval sets the maximum real interval between calls to time.Sleep().
+// resolution sets the maximum real interval between calls to time.Sleep().
 //
-// tickInterval is adjusted to be no smaller than period and so that the
+// resolution is adjusted to be no smaller than period and so that the
 // returned tick value is a power of two while keeping the period accurate.
 //
 // Multiple ticker functions can be chained with a clock limiter:
@@ -92,22 +103,21 @@ type Option func(*Instance) error
 //		game.Update(i)
 //	})
 //
-func ClockLimiter(period, tickInterval time.Duration) (ticker func(i *Instance), ticks int64) {
+func ClockLimiter(period, resolution time.Duration) (ticker func(i *Instance), ticks int64) {
 	if period <= 0 {
 		return nil, 0
 	}
-	if tickInterval <= 0 {
+	if resolution <= 0 {
 		// do sleep at least every 16ms (in order to be able to sync with a game's frame rate at 60fps)
-		tickInterval = 16 * time.Millisecond
+		resolution = 16 * time.Millisecond
 	}
-	if tickInterval < period {
-		tickInterval = period
+	if resolution < period {
+		resolution = period
 	}
-	ticks = nextPow2(int64(tickInterval / period))
-	ticks = nextPow2(ticks)
+	ticks = nextPow2(int64(resolution / period))
 	period = period * time.Duration(ticks)
 	// correct rounding errors
-	if period > tickInterval {
+	if period > resolution {
 		period /= 2
 		ticks /= 2
 	}
@@ -131,17 +141,18 @@ func ClockLimiter(period, tickInterval time.Duration) (ticker func(i *Instance),
 // Ticker configures the VM to run the fn function every n VM ticks.
 //
 // The ticks parameter is rounded up to the nearest power of two.
-// If set to zero, fn will be called at every tick.
+// If ticks <= 0, fn will never be called.
 //
 // See ClockLimiter for an example use.
 //
 func Ticker(fn func(i *Instance), ticks int64) Option {
 	return func(i *Instance) error {
 		i.tickFn = fn
-		if ticks == 0 {
-			ticks = 1
+		if ticks > 0 {
+			i.tickMask = nextPow2(ticks) - 1
+		} else {
+			i.tickMask = -1
 		}
-		i.tickMask = nextPow2(ticks) - 1
 		return nil
 	}
 }
