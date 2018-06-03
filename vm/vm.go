@@ -79,22 +79,18 @@ type Option func(*Instance) error
 // tickInterval is adjusted to be no smaller than period and so that the
 // returned tick value is a power of two while keeping the period accurate.
 //
-// In order to achive a simulated clock frequency of 20MHz, with a call to
-// the returned function at most every 16ms (1/60s), set period to
-// time.Second/20e6 and tickInterval to 16*time.Millisecond.
-//
 // Multiple ticker functions can be chained with a clock limiter:
 //
-//	// simulate a clock frequency of 20MHz with a call to the returned function at most every 16ms (1/60s)
+//	// simulate a clock frequency of 20MHz with a call to the ticker function at most every 16ms (1/60s)
 //	ticks, clkLimiter := ClockLimiter(time.Second/20e6, 16*time.Millisecond)
 //
 //	// wrap clkLimiter into a custom ticker
-//	vm.Tick(ticks, func(i *vm.Instance)) {
+//	vm.Tick(ticks, func(i *vm.Instance) {
 //		// call the clock limiter
 //		clkLimiter(i)
 //		// update game engine
 //		game.Update(i)
-//	}
+//	})
 //
 func ClockLimiter(period, tickInterval time.Duration) (ticker func(i *Instance), ticks int64) {
 	if period <= 0 {
