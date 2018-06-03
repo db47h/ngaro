@@ -122,6 +122,19 @@ See the [releases page](https://github.com/db47h/ngaro/releases).
 
 For a detailed change log, see the [commit log](https://github.com/db47h/ngaro/commits/master).
 
+## Contributing
+
+No rules, just common sense. Bells, wristles and any other preformance improvements are very
+welcome. The only changes that will never be accepted are those that will break compatibility
+with the VM specification.
+
+PRs are a good place to discuss changes so do not hesitate to send PRs directly. Or an issue, if your really have an issue.
+
+## Places to Go
+
+Have a look at [@dobegor's fork](https://github.com/dobegor/ngaro). It breaks compatibility with the spec, but
+it's got some nice features like floating point support, pausable VM, and a few others in their TODO list.
+
 ## License
 
 This project is Copyright 2016 Denis Bernard <db047h@gmail.com>, licensed under
