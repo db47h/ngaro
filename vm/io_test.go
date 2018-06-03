@@ -176,7 +176,7 @@ func Test_port8(t *testing.T) {
 		t.Fatal("Flush failed")
 	}
 	if i.Tos() != 24 {
-		t.Fatalf("Expected height: 24, got: %d", i.Tos)
+		t.Fatalf("Expected height: 24, got: %d", i.Tos())
 	}
 	if i.Nos() != 42 {
 		t.Fatalf("Expected width: 42, got: %d", i.Nos())

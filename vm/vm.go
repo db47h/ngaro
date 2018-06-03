@@ -19,6 +19,7 @@ package vm
 import (
 	"io"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -60,10 +61,106 @@ type Instance struct {
 	fid       Cell
 	files     map[Cell]*os.File
 	memDump   func(string, []Cell) error
+	tickMask  int64
+	tickFn    func(i *Instance)
 }
 
 // Option interface
 type Option func(*Instance) error
+
+// ClockLimiter returns a ticker function that sets the period between VM ticks.
+// Its return values can be fed directly into Ticker().
+//
+// A zero or negative period means no pause.
+//
+// Since calling time.Sleep() on every tick is not efficient, the
+// tickInterval sets the maximum real interval between calls to time.Sleep().
+//
+// tickInterval is adjusted to be no smaller than period and so that the
+// returned tick value is a power of two while keeping the period accurate.
+//
+// In order to achive a simulated clock frequency of 20MHz, with a call to
+// the returned function at most every 16ms (1/60s), set period to
+// time.Second/20e6 and tickInterval to 16*time.Millisecond.
+//
+// Multiple ticker functions can be chained with a clock limiter:
+//
+//	// simulate a clock frequency of 20MHz with a call to the returned function at most every 16ms (1/60s)
+//	ticks, clkLimiter := ClockLimiter(time.Second/20e6, 16*time.Millisecond)
+//
+//	// wrap clkLimiter into a custom ticker
+//	vm.Tick(ticks, func(i *vm.Instance)) {
+//		// call the clock limiter
+//		clkLimiter(i)
+//		// update game engine
+//		game.Update(i)
+//	}
+//
+func ClockLimiter(period, tickInterval time.Duration) (ticker func(i *Instance), ticks int64) {
+	if period <= 0 {
+		return nil, 0
+	}
+	if tickInterval <= 0 {
+		// do sleep at least every 16ms (in order to be able to sync with a game's frame rate at 60fps)
+		tickInterval = 16 * time.Millisecond
+	}
+	if tickInterval < period {
+		tickInterval = period
+	}
+	ticks = nextPow2(int64(tickInterval / period))
+	ticks = nextPow2(ticks)
+	period = period * time.Duration(ticks)
+	// correct rounding errors
+	if period > tickInterval {
+		period /= 2
+		ticks /= 2
+	}
+
+	var start time.Time
+
+	return func(i *Instance) {
+		if start.IsZero() {
+			start = time.Now()
+			return
+		}
+		end := time.Now()
+		sleep := period - end.Sub(start)
+		if sleep >= 0 {
+			time.Sleep(sleep)
+		}
+		start = end.Add(sleep)
+	}, ticks
+}
+
+// Ticker configures the VM to run the fn function every n VM ticks.
+//
+// The ticks parameter is rounded up to the nearest power of two.
+// If set to zero, fn will be called at every tick.
+//
+// See ClockLimiter for an example use.
+//
+func Ticker(fn func(i *Instance), ticks int64) Option {
+	return func(i *Instance) error {
+		i.tickFn = fn
+		if ticks == 0 {
+			ticks = 1
+		}
+		i.tickMask = nextPow2(ticks) - 1
+		return nil
+	}
+}
+
+// returns the next power of 2 of n.
+func nextPow2(n int64) int64 {
+	n--
+	n |= n >> 1
+	n |= n >> 2
+	n |= n >> 4
+	n |= n >> 8
+	n |= n >> 16
+	n |= n >> 32
+	return n + 1
+}
 
 // DataSize sets the data stack size. It will not erase the stack, and will
 // panic if the requested size is not sufficient to hold the current stack. The

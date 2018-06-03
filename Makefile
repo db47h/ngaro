@@ -51,7 +51,7 @@ cover:
 	@$(RM) coverage0.cov coverage1.cov coverage2.cov coverage.cov
 
 qbench: retroImage
-	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro <vm/testdata/core.rx >/dev/null
+	/usr/bin/time -f '%Uu %Ss %er %MkB %C' ./retro -stats <vm/testdata/core.rx >/dev/null
 
 retroImage: retro _misc/kernel.rx _misc/meta.rx _misc/stage2.rx
 	./retro -image vm/testdata/retroImage -ibits 32 -with _misc/meta.rx -with _misc/kernel.rx -o retroImage >/dev/null

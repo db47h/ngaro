@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/db47h/ngaro/lang/retro"
 	"github.com/db47h/ngaro/vm"
@@ -153,9 +154,9 @@ func main() {
 
 	var withFiles fileList
 
-	var fileName = flag.String("image", "retroImage", "Load memory image from file `filename`")
+	fileName := flag.String("image", "retroImage", "Load memory image from file `filename`")
 	flag.Var(&srcCellSz, "ibits", "cell size in bits of loaded memory image")
-	var size = flag.Int("size", 100000, "runtime memory image size in cells")
+	size := flag.Int("size", 100000, "runtime memory image size in cells")
 	flag.BoolVar(&dump, "dump", false, "dump stacks and memory image upon exit, for ngarotest.py")
 	flag.Var(&withFiles, "with", "Add `filename` to the input list (can be specified multiple times)")
 	flag.BoolVar(&noShrink, "noshrink", false, "When saving, don't shrink memory image file")
@@ -163,6 +164,9 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "enable debug diagnostics")
 	flag.StringVar(&outFileName, "o", "", "`filename` to use when saving memory image")
 	flag.Var(&dstCellSz, "obits", "cell size in bits of saved memory image")
+	period := flag.Int64("clkfreq", 0, "clock frequency throttling in KHz")
+	sleep := flag.Duration("clkslp", 16*time.Millisecond, "interval between sleeps when throttling the clock")
+	execStats := flag.Bool("stats", false, "print performance statistics upon exit")
 
 	flag.Parse()
 
@@ -176,6 +180,10 @@ func main() {
 	var opts = []vm.Option{
 		vm.SaveMemImage(retro.ShrinkSave(!noShrink, int(dstCellSz))),
 		vm.Output(output),
+	}
+
+	if *period > 0 {
+		opts = append(opts, vm.Ticker(vm.ClockLimiter(time.Second/time.Duration(*period)/1000, *sleep)))
 	}
 
 	if rawtty {
@@ -210,7 +218,13 @@ func main() {
 	if err != nil {
 		return
 	}
+	start := time.Now()
 	if err = i.Run(); errors.Cause(err) == io.EOF {
 		err = nil
+	}
+	if *execStats {
+		delta := time.Since(start)
+		fmt.Fprintf(os.Stderr, "Executed %d instructions in %v (%.3f MHz).\n", i.InstructionCount(), delta,
+			float64(i.InstructionCount())/float64(delta)*float64(time.Second)/1e6)
 	}
 }

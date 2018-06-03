@@ -16,7 +16,9 @@
 
 package vm
 
-import "github.com/pkg/errors"
+import (
+	"github.com/pkg/errors"
+)
 
 // Ngaro Virtual Machine Opcodes.
 const (
@@ -169,6 +171,7 @@ func (i *Instance) Run() (err error) {
 			}
 		}
 	}()
+
 	i.insCount = 0
 	for i.PC < len(i.Mem) {
 		op := i.Mem[i.PC]
@@ -336,7 +339,7 @@ func (i *Instance) Run() (err error) {
 				i.address[i.rsp] = i.rtos
 				i.rtos, i.PC = Cell(i.PC), int(op)
 				// this is retro specific: most words have a pair of nop at the
-				// beginning to enable vectoring, skip them. This shaves of a few cycles.
+				// beginning to enable vectoring, skip them. This shaves off a few cycles.
 				if i.PC < len(i.Mem) && i.Mem[i.PC] == OpNop {
 					i.PC++
 				}
@@ -353,6 +356,9 @@ func (i *Instance) Run() (err error) {
 			}
 		}
 		i.insCount++
+		if i.tickFn != nil && i.insCount&i.tickMask == 0 {
+			i.tickFn(i)
+		}
 	}
 	return nil
 }
